@@ -726,4 +726,266 @@ public class Cluster {
             pages[page.offset].attachedPages = page.element.attachedPages.filter {$0 != newPageID}
         }
     }
+
+    /// The main function to access the package, adding a data point (page or note)
+    /// to the clustering process. The function makes sure that a request to add a data point
+    /// includes an unknown datapoint, in the contrary case it updates the existing
+    /// data point
+    ///
+    /// - Parameters:
+    ///   - page: The page to be added, in case the data point is a page
+    ///   - note: The note to be added, in case the data point is a note
+    ///   - ranking: A ranking of all pages, for the purposes of removing pages when necessary
+    ///   - replaceContent: A flag to declare that the request comes from PnS, the page
+    ///                     already exists, and the text considered for the page should be replaced.
+    ///   - note: The note to be added, in case the data point is a note
+    /// - Returns: (through completion)
+    ///             - pageGroups: Array of arrays of all pages clustered into groups
+    ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
+    ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
+    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UInt64]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+        myQueue.async {
+            // Check that we are adding exactly one object
+            if page != nil && note != nil {
+                completion(.failure(ClusteringError.moreThanOneObjectToAdd))
+                return
+            }
+            if page == nil && note == nil {
+                completion(.failure(ClusteringError.noObjectsToAdd))
+                return
+            }
+            var dataPointType: DataPoint = .note
+            if page != nil {
+                dataPointType = .page
+            }
+            // If ranking is received, remove pages
+            if let ranking = ranking {
+                do {
+                    try self.remove(ranking: ranking)
+                } catch let error {
+                    completion(.failure(error))
+                }
+            }
+            // Updating the data point, if already existant
+            if let page = page,
+               let id_index = self.findPageInPages(pageID: page.id) {
+                if replaceContent,
+                   let newContent = page.content {
+                    // Update content through PnS
+                    let totalContentTokenized = (newContent + " " + (self.pages[id_index].content ?? "")).split(separator: " ")
+                    if totalContentTokenized.count > 512 {
+                        self.pages[id_index].content = totalContentTokenized.dropLast(totalContentTokenized.count - 512).joined(separator: " ")
+                    } else {
+                        self.pages[id_index].content = totalContentTokenized.joined(separator: " ")
+                    }
+                    do {
+                        try self.textualSimilarityProcess(index: id_index, dataPointType: dataPointType, changeContent: true)
+                        try self.entitiesProcess(index: id_index, dataPointType: dataPointType, changeContent: true)
+                    } catch let error {
+                        completion(.failure(error))
+                    }
+               }
+               if let myParent = page.parentId,
+               let parent_index = self.findPageInPages(pageID: myParent) {
+                // Page exists, new parenting relation
+                self.navigationMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 1.0
+                self.navigationMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 1.0
+               }
+            // Updating existing note
+            } else if let note = note,
+                      let id_index = self.findNoteInNotes(noteID: note.id) {
+                do {
+                    if let newContent = note.content {
+                        self.notes[id_index].content = newContent
+                    }
+                    if let newTitle = note.title {
+                        self.notes[id_index].title = self.titlePreprocessing(of: newTitle)
+                    }
+                    try self.textualSimilarityProcess(index: id_index, dataPointType: .note, changeContent: true)
+                    try self.entitiesProcess(index: id_index, dataPointType: .note, changeContent: true)
+                } catch let error {
+                    completion(.failure(error))
+                }
+            // New page or note
+            } else {
+                // If page was visited in the past and deleted, remove from
+                // deleted pages
+                if let page = page {
+                    self.removeFromDeleted(newPageID: page.id)
+                }
+                // Navigation matrix computation
+                var navigationSimilarities = [Double](repeating: 0.0, count: self.adjacencyMatrix.rows)
+
+                if let page = page, let myParent = page.parentId, let parent_index = self.findPageInPages(pageID: myParent) {
+                    navigationSimilarities[parent_index + self.notes.count] = 1.0
+                }
+
+                do {
+                    try self.navigationMatrix.addDataPoint(similarities: navigationSimilarities, type: dataPointType, numExistingNotes: self.notes.count, numExistingPages: self.pages.count)
+                } catch let error {
+                    completion(.failure(error))
+                }
+
+                var newIndex = self.pages.count
+                if let page = page {
+                    self.pages.append(page)
+                    if let title = self.pages[newIndex].title {
+                        self.pages[newIndex].title = self.titlePreprocessing(of: title)
+                    }
+                } else if let note = note {
+                    newIndex = self.notes.count
+                    self.notes.append(note)
+                    if let title = self.notes[newIndex].title {
+                        self.notes[newIndex].title = self.titlePreprocessing(of: title)
+                    }
+                }
+                // Handle Text similarity and entities
+                do {
+                    try self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
+                    try self.entitiesProcess(index: newIndex, dataPointType: dataPointType)
+                } catch let error {
+                    completion(.failure(error))
+                }
+            }
+            //Here is where we would add more similarity matrices in the future
+            self.createAdjacencyMatrix()
+
+            let start = CFAbsoluteTimeGetCurrent()
+            var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
+            do {
+                predictedClusters = try self.clusterize()
+            } catch let error {
+                completion(.failure(error))
+            }
+            let clusteringTime = CFAbsoluteTimeGetCurrent() - start
+            let stablizedClusters = self.stabilize(predictedClusters)
+            let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+
+            DispatchQueue.main.async {
+                if clusteringTime > self.timeToRemove {
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: true)))
+                } else {
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: false)))
+                }
+            }
+        }
+    }
+
+    /// Stabilize clustering results to maintain order from one clustering to another
+    ///
+    /// - Parameters:
+    ///   - predictedClusteris: The result of spectral clustering
+    /// - Returns: The same clustering result, with order in the labels (0 then 1 etc, by order)
+    func stabilize(_ predictedClusters: [Int]) -> [Int] {
+        var nextNewCluster = 0
+        var clustersMap = [Int: Int]()
+        var newClusters = [Int]()
+        for oldLabel in predictedClusters {
+            if let newLabel = clustersMap[oldLabel] {
+                newClusters.append(newLabel)
+            } else {
+                clustersMap[oldLabel] = nextNewCluster
+                newClusters.append(nextNewCluster)
+                nextNewCluster += 1
+            }
+        }
+        return newClusters
+    }
+
+    /// Turn raw clustering result to arrays of arrays for pages and notes
+    ///
+    /// - Parameters:
+    ///   - labels: A stabilized list of labels, corresponding to all data points
+    /// - Returns: - An array of arrays of all pages, by groups
+    ///            - An array of arrays of all notes, by groups corresponding to the pages
+    private func clusterizeIDs(labels: [Int]) -> ([[UInt64]], [[UUID]]) {
+        guard self.notes.count + self.pages.count > 0 else { return ([[UInt64]](), [[UUID]]())}
+
+        var clusterizedPages = [[UInt64]]()
+        if labels.count > 0 {
+            for _ in 0...(labels.max() ?? 0) {
+                clusterizedPages.append([UInt64]())
+            }
+        }
+        var clusterizedNotes = [[UUID]]()
+        if labels.count > 0 {
+            for _ in 0...(labels.max() ?? 0) {
+                clusterizedNotes.append([UUID]())
+            }
+        }
+
+        for label in labels.enumerated() {
+            if label.offset < self.notes.count {
+                clusterizedNotes[label.element].append(self.notes[label.offset].id)
+            } else {
+                clusterizedPages[label.element].append(self.pages[label.offset - self.notes.count].id)
+                clusterizedPages[label.element] += self.pages[label.offset - self.notes.count].attachedPages
+            }
+        }
+        return (clusterizedPages, clusterizedNotes)
+    }
+
+    /// Perform a cnadidate change (this is where we can change candidates)
+    func performCandidateChange() throws {
+        switch self.candidate {
+        case 1:
+            self.clusteringCandidate = ClusteringCandidate.nonNormalizedLaplacian
+            self.matrixCandidate = SimilarityMatrixCandidate.navigationMatrix
+            self.noteMatrixCandidate = SimilarityForNotesCandidate.nothing
+            self.numClustersCandidate = NumClusterComputationCandidate.threshold
+        case 2:
+            self.clusteringCandidate = ClusteringCandidate.randomWalkLaplacian
+            self.matrixCandidate = SimilarityMatrixCandidate.combinationSigmoid
+            self.noteMatrixCandidate = SimilarityForNotesCandidate.fixed
+            self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
+        case 3:
+            self.clusteringCandidate = ClusteringCandidate.randomWalkLaplacian
+            self.matrixCandidate = SimilarityMatrixCandidate.fixedPagesTestNotes
+            self.noteMatrixCandidate = SimilarityForNotesCandidate.combinationBeforeSigmoid
+            self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
+        default:
+            throw CandidateError.unknownCandidate
+        }
+    }
+
+    /// A function to allow clusteringManager to change between candidates for testing
+    /// Changing candidates implies new clustering
+    ///
+    /// - Parameters:
+    ///   - candidate: The candidate to change to
+    ///   - weightNavigation: New weight for the navigation component
+    ///   - weightText: New weight for the text component
+    ///   - weightEntities: New weight for the entities component
+    /// - Returns: (through completion)
+    ///             - pageGroups: Array of arrays of all pages clustered into groups
+    ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
+    ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
+    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+        myQueue.async {
+            // If ranking is received, remove pages
+            self.candidate = candidate ?? self.candidate
+            self.weights[.navigation] = weightNavigation ?? self.weights[.navigation]
+            self.weights[.text] = weightText ?? self.weights[.text]
+            self.weights[.entities] = weightEntities ?? self.weights[.entities]
+            do {
+                try self.performCandidateChange()
+            } catch {
+                completion(.failure(CandidateError.unknownCandidate))
+            }
+
+            self.createAdjacencyMatrix()
+            var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
+            do {
+                predictedClusters = try self.clusterize()
+            } catch let error {
+                completion(.failure(error))
+            }
+            let stablizedClusters = self.stabilize(predictedClusters)
+            let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+
+            DispatchQueue.main.async {
+                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: false)))
+            }
+        }
+    }
 }
