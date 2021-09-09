@@ -39,6 +39,7 @@ public class Cluster {
         case combinationAllSimilarityMatrix
         case combinationAllBinarisedMatrix
         case combinationSigmoidWithTextErasure
+        case fixedPagesTestNotes
     }
 
     enum SimilarityForNotesCandidate {
@@ -92,14 +93,14 @@ public class Cluster {
     //Define which Laplacian to use
     var laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
     // Define which similarity matrix to use
-    var matrixCandidate = SimilarityMatrixCandidate.navigationMatrix
+    var matrixCandidate = SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
     var noteMatrixCandidate = SimilarityForNotesCandidate.fixed
     // Define which number of clusters computation to use
     var numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.8, weightEntities: Double = 0.3) {
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.8, weightEntities: Double = 0.5) {
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
@@ -111,7 +112,7 @@ public class Cluster {
         }
     }
 
-    class SimilarityMatrix {
+    public class SimilarityMatrix {
         var matrix = Matrix([[0]])
 
         /// Add a data point (webpage or note) to the similarity matrix
@@ -205,7 +206,7 @@ public class Cluster {
          override func removeDataPoint(index: Int) throws {
              var connectionsVct = (self.matrix ?? (.Pos([index]), .All)).flat
              connectionsVct.remove(at: index)
-             try super.removePage(index: index)
+             try super.removeDataPoint(index: index)
              for i in 0..<self.matrix.rows where connectionsVct[i] == 1.0 {
                  for j in 0..<self.matrix.rows where i != j && connectionsVct[j] == 1.0 {
                      self.matrix[i, j] = 1.0
@@ -635,7 +636,6 @@ public class Cluster {
     func createAdjacencyMatrix() {
         // Prepare the entire matrix, as if it is composed only of pages
         switch self.matrixCandidate {
-        case .
         case .navigationMatrix:
             self.adjacencyMatrix = self.navigationMatrix.matrix
         case .combinationAllSimilarityMatrix:
@@ -647,6 +647,12 @@ public class Cluster {
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: self.weights[.text] ?? 0.5, beta: self.beta)
             let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: self.weights[.entities] ?? 0.5, beta: self.beta)
             self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
+        case .fixedPagesTestNotes:
+            let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
+            let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.8, beta: self.beta)
+            let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.5, beta: self.beta)
+            let adjacencyForPages = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
+            self.adjacencyMatrix = adjacencyForPages
         }
 
         // Make adjustments for notes
@@ -687,9 +693,9 @@ public class Cluster {
                         pages[pageIndexToAttach].attachedPages.append(pageToRemove)
                         pages[pageIndexToAttach].attachedPages += pages[pageIndexToRemove].attachedPages
                     }
-                    try self.navigationMatrix.removePage(index: pageIndexToRemove + self.notes.count)
-                    try self.textualSimilarityMatrix.removePage(index: pageIndexToRemove + self.notes.count)
-                    try self.entitiesMatrix.removePage(index: pageIndexToRemove + self.notes.count)
+                    try self.navigationMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
+                    try self.textualSimilarityMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
+                    try self.entitiesMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     self.pages.remove(at: pageIndexToRemove)
                     pagesRemoved += 1
                     ranking = Array(ranking.dropFirst())
@@ -747,11 +753,11 @@ public class Cluster {
         myQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
-                completion(.failure(ClusteringError.moreThanOneObjectToAdd))
+                completion(.failure(AdditionError.moreThanOneObjectToAdd))
                 return
             }
             if page == nil && note == nil {
-                completion(.failure(ClusteringError.noObjectsToAdd))
+                completion(.failure(AdditionError.noObjectsToAdd))
                 return
             }
             var dataPointType: DataPoint = .note
@@ -853,7 +859,7 @@ public class Cluster {
             let start = CFAbsoluteTimeGetCurrent()
             var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
             do {
-                predictedClusters = try self.clusterize()
+                predictedClusters = try self.spectralClustering()
             } catch let error {
                 completion(.failure(error))
             }
@@ -929,17 +935,17 @@ public class Cluster {
     func performCandidateChange() throws {
         switch self.candidate {
         case 1:
-            self.clusteringCandidate = ClusteringCandidate.nonNormalizedLaplacian
+            self.laplacianCandidate = LaplacianCandidate.nonNormalizedLaplacian
             self.matrixCandidate = SimilarityMatrixCandidate.navigationMatrix
             self.noteMatrixCandidate = SimilarityForNotesCandidate.nothing
             self.numClustersCandidate = NumClusterComputationCandidate.threshold
         case 2:
-            self.clusteringCandidate = ClusteringCandidate.randomWalkLaplacian
-            self.matrixCandidate = SimilarityMatrixCandidate.combinationSigmoid
+            self.laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
+            self.matrixCandidate = SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
             self.noteMatrixCandidate = SimilarityForNotesCandidate.fixed
             self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
         case 3:
-            self.clusteringCandidate = ClusteringCandidate.randomWalkLaplacian
+            self.laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
             self.matrixCandidate = SimilarityMatrixCandidate.fixedPagesTestNotes
             self.noteMatrixCandidate = SimilarityForNotesCandidate.combinationBeforeSigmoid
             self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
@@ -976,7 +982,7 @@ public class Cluster {
             self.createAdjacencyMatrix()
             var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
             do {
-                predictedClusters = try self.clusterize()
+                predictedClusters = try self.spectralClustering()
             } catch let error {
                 completion(.failure(error))
             }
