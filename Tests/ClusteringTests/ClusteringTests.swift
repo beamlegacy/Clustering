@@ -181,4 +181,251 @@ class ClusteringTests: XCTestCase {
         let similarity = cluster.jaccardEntities(entitiesText1: firstTextEntities, entitiesText2: secondTextEntities)
         expect(similarity).to(beCloseTo(0.5, within: 0.0001))
     }
+
+    /// Test that titles are taken into account correctly for the sake of entity comparison
+    func testEntitySimilarityOverTitles() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Add page expectation")
+        let pages = [
+            Page(id: 0, parentId: nil, title: "roger federer - Google search", content: nil),
+            Page(id: 1, parentId: 0, title: "Roger Federer", content: nil),
+            Page(id: 2, parentId: 0, title: "Pete Sampras", content: nil)
+            ]
+        for page in pages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+                if page.offset == pages.count - 1 {
+                    expectation.fulfill()
+                }
+            })
+        }
+        wait(for: [expectation], timeout: 1)
+
+        let expectedEntitiesMatrix = [0.0, 1.0, 0.0,
+                                      1.0, 0.0, 0.0,
+                                      0.0, 0.0, 0.0]
+        expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo(expectedEntitiesMatrix, within: 0.0001))
+    }
+
+    /// Test all similarity matrices
+    func testAllSimilarityMatrices() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Add page expectation")
+        let pages = [
+            Page(id: 0, parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
+            Page(id: 1, parentId: 0, title: nil, content: "Tennis is a very fun game"),
+            Page(id: 2, parentId: 0, title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
+            ]
+        for page in pages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+                if page.offset == pages.count - 1 {
+                    expectation.fulfill()
+                }
+            })
+        }
+        wait(for: [expectation], timeout: 1)
+
+        let expectedEntitiesMatrix = [0.0, 0.0, 0.5,
+                                    0.0, 0.0, 0.0,
+                                    0.5, 0.0, 0.0]
+        let expectedNavigationMatrix = [0.0, 1.0, 1.0,
+                                        1.0, 0.0, 0.0,
+                                        1.0, 0.0, 0.0]
+        let expectedTextualMatrix = [0.0, 0.46988745662121795, 0.3628206314147012,
+                                    0.46988745662121795, 0.0, 0.19001699954776027,
+                                    0.3628206314147012, 0.19001699954776027, 0.0]
+        if #available(iOS 14, macOS 11, *) {
+            expect(cluster.pages[0].language) == NLLanguage.english
+            expect(cluster.pages[1].language) == NLLanguage.english
+            expect(cluster.pages[2].language) == NLLanguage.english
+            expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo(expectedTextualMatrix, within: 0.0001))
+        }
+        expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo(expectedEntitiesMatrix, within: 0.0001))
+        expect(cluster.navigationMatrix.matrix.flat).to(beCloseTo(expectedNavigationMatrix, within: 0.0001))
+    }
+
+    /// Test that the 'add' function sends back the sendRanking flag when the clustering process exceeds the time threshold
+    func testRaiseRemoveFlag() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Raise remove flag")
+        cluster.timeToRemove = 0.0
+        let pages = [
+            Page(id: 0, parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
+            Page(id: 1, parentId: 0, title: nil, content: "Tennis is a very fun game"),
+            Page(id: 2, parentId: 0, title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
+            ]
+        for page in pages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    if page.offset == pages.count - 1 {
+                        expect(result.sendRanking) == true
+                    }
+                }
+                if page.offset == pages.count - 1 {
+                    expectation.fulfill()
+                }
+            })
+        }
+        wait(for: [expectation], timeout: 1)
+    }
+
+    /// Test that when a ranking is sent along with  a request to 'add', the 3 least ranked pages are removed
+    func testPageRemoval() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Add page expectation")
+        let pages = [
+            Page(id: 0, parentId: nil, title: "man", content: "A man is eating food."),
+            Page(id: 1, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
+            Page(id: 2, parentId: 0, title: "man", content: "A man is eating food."),
+            Page(id: 3, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
+            Page(id: 4, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
+            Page(id: 5, parentId: 0, title: "man", content: "A man is eating food."),
+            Page(id: 6, parentId: 0, title: "fille", content: "La fille est en train de porter un bébé.")
+            ]
+        for page in pages.enumerated() {
+            var ranking: [UInt64]? = nil
+            if page.offset == pages.count - 1 {
+                ranking = [1, 4, 2, 3, 5, 0]
+            }
+            cluster.add(page: page.element, ranking: ranking, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result
+                }
+                if page.offset == pages.count - 1 {
+                    expectation.fulfill()
+                }
+            })
+            if page.offset == 4 {
+                let myUUID = UUID()
+                let myNote = ClusteringNote(id: myUUID, title: "Roger Federer", content: "Roger Federer is the best Tennis player in history")
+                cluster.add(note: myNote, ranking: nil, completion: { result in
+                    switch result {
+                    case .failure(let error):
+                        XCTFail(error.localizedDescription)
+                    case .success(let result):
+                        _ = result
+                    }
+                })
+            }
+        }
+        wait(for: [expectation], timeout: 1)
+        var attachedPages = [UInt64]()
+        for page in cluster.pages {
+            attachedPages += page.attachedPages
+        }
+        expect(Set(attachedPages)) == Set([1, 4, 2])
+        expect(cluster.adjacencyMatrix.rows) == 5 // 4 pages and one note
+        expect(cluster.pages.count) == 4
+        expect(cluster.notes.count) == 1
+    }
+
+    /// A page that was removed from the matrices is visited again by the user. Test that it is readded correctly and removed from attachedPages
+    func testRevisitPageAfterRemoval() throws {
+        let cluster = Cluster()
+        let firstExpectation = self.expectation(description: "Add page expectation")
+        let secondExpectation = self.expectation(description: "Add page expectation")
+        let firstPages = [
+            Page(id: 0, parentId: nil, title: "Page 1", content: "A man is eating food."),
+            Page(id: 1, parentId: 0, title: "Page 2", content: "The girl is carrying a baby."),
+            Page(id: 2, parentId: 0, title: "Page 3", content: "A man is eating food.")
+            ]
+        let secondPages = [
+            Page(id: 3, parentId: 0, title: "Page 4", content: "The girl is carrying a baby."),
+            Page(id: 4, parentId: 0, title: "Page 5", content: "The girl is carrying a baby.")
+            ]
+        for page in firstPages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+                if page.offset == firstPages.count - 1 {
+                    firstExpectation.fulfill()
+                }
+            })
+        }
+        wait(for: [firstExpectation], timeout: 1)
+        cluster.pages[0].attachedPages = [3]
+        cluster.pages[1].attachedPages = [4]
+        for page in secondPages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+                if page.offset == secondPages.count - 1 {
+                    secondExpectation.fulfill()
+                }
+            })
+        }
+        wait(for: [secondExpectation], timeout: 1)
+        expect(cluster.pages[0].attachedPages) == []
+        expect(cluster.pages[1].attachedPages) == []
+    }
+
+    /// When removing a page from the matrix, chage that if the most similar data point to that page is a note, that does not create a problem
+    func testRemovingPageWithSimilarNote() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Add note expectation")
+        for i in 0...5 {
+            let myPage = Page(id: UInt64(i), parentId: nil, title: nil, content: "Here's some text for you")
+            // The pages themselves don't matter as we will later force the similarity matrix
+            cluster.add(page: myPage, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+            })
+        }
+        for i in 0...2 {
+            let myNote = ClusteringNote(id: UUID(), title: "My note", content: "This is my note")
+            cluster.add(note: myNote, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    let _ = result.0
+                }
+                if i == 2{
+                    expectation.fulfill()
+                }
+            })
+        }
+        wait(for: [expectation], timeout: 1)
+        cluster.adjacencyMatrix = Matrix([[0, 0, 0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4],
+                                   [0, 0, 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+                                   [0, 0, 0, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3],
+                                   [0.9, 0.1, 0.3, 0, 0.5, 0.5, 0.5, 0.5, 0.5],
+                                   [0.8, 0.2, 0.3, 0.5, 0, 0.7, 0.2, 0.1, 0.1],
+                                   [0.7, 0.3, 0.3, 0.5, 0.7, 0, 0.6, 0.2, 0.1],
+                                   [0.6, 0.4, 0.3, 0.5, 0.2, 0.6, 0, 0.9, 0.3],
+                                   [0.5, 0.5, 0.3, 0.5, 0.1, 0.2, 0.9, 0, 0.4],
+                                   [0.4, 0.6, 0.3, 0.5, 0.1, 0.1, 0.3, 0.4, 0]])
+        try cluster.remove(ranking: [0])
+        expect(cluster.pages[0].id) == UInt64(1)
+        expect(cluster.pages[0].attachedPages) == [0]
+    }
 }
