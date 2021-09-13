@@ -128,6 +128,8 @@ class ClusteringTests: XCTestCase {
                 })
             }
             wait(for: [expectation], timeout: 1)
+            expect(cluster.pages[2].language) == NLLanguage.french
+            expect(cluster.pages[3].language) == NLLanguage.french
             expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.9065, 1, 1, 0.9065, 0], within: 0.0001))
             expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
         }
