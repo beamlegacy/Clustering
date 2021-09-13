@@ -3,6 +3,7 @@ import Foundation
 import NaturalLanguage
 import Accelerate
 
+// swiftlint:disable:next type_body_length
 public class Cluster {
 
     enum FindEntitiesIn {
@@ -219,6 +220,7 @@ public class Cluster {
     /// Perform spectral clustering over a given adjacency matrix
     ///
     /// - Returns: An array of integers, corresponding to a grouping of all data points. The number given to each group is meaningless, only the grouping itself is meaningful
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func spectralClustering() throws -> [Int] {
         guard self.adjacencyMatrix.rows >= 2 else {
             return zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
@@ -409,6 +411,7 @@ public class Cluster {
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
     /// - Returns: A list of similarity scores
+    // swiftlint:disable:next cyclomatic_complexity
     func scoreEntitySimilarities(entitiesInNewText: EntitiesInText, in whichText: FindEntitiesIn, index: Int, dataPointType: DataPoint, changeContent: Bool = false) -> [Double] {
         var scores = [Double]()
         switch whichText {
@@ -510,6 +513,7 @@ public class Cluster {
     ///   - index: The index of the data point within the corresponding vector (pages or notes)
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
+    // swiftlint:disable:next cyclomatic_complexity
     func entitiesProcess(index: Int, dataPointType: DataPoint, changeContent: Bool = false) throws {
         var scores = [Double](repeating: 0.0, count: self.entitiesMatrix.matrix.rows)
         var content: String?
@@ -633,6 +637,7 @@ public class Cluster {
     }
 
     /// Create the final adjacency matrix, to be used as an input to spectral clustering
+    // swiftlint:disable:next cyclomatic_complexity
     func createAdjacencyMatrix() {
         // Prepare the entire matrix, as if it is composed only of pages
         switch self.matrixCandidate {
@@ -749,6 +754,7 @@ public class Cluster {
     ///             - pageGroups: Array of arrays of all pages clustered into groups
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
+    // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
     public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UInt64]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
         myQueue.async {
             // Check that we are adding exactly one object
@@ -966,6 +972,7 @@ public class Cluster {
     ///             - pageGroups: Array of arrays of all pages clustered into groups
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
+    // swiftlint:disable:next large_tuple
     public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
         myQueue.async {
             // If ranking is received, remove pages
@@ -994,4 +1001,5 @@ public class Cluster {
             }
         }
     }
+    // swiftlint:disable:next file_length
 }

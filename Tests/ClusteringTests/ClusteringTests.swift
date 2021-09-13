@@ -4,6 +4,7 @@ import LASwift
 import NaturalLanguage
 @testable import Clustering
 
+// swiftlint:disable:next type_body_length
 class ClusteringTests: XCTestCase {
 
     /// Test that initialization of the clustering module is done with all parameters as expected
@@ -18,7 +19,7 @@ class ClusteringTests: XCTestCase {
         expect(cluster.weights[.text]) == 0.8
         expect(cluster.weights[.entities]) == 0.5
     }
-    
+
     /// Test adding and removing of data points from a (non-navigation) similarity matrix. For both addition and removal, test that all locations in the matrix (first, last, middle) work as expected
     func testAddandRemoveDataPointsToSimilarityMatrix() throws {
         let cluster = Cluster()
@@ -92,7 +93,6 @@ class ClusteringTests: XCTestCase {
         expect(cossim).to(beCloseTo(0.9847319278346619, within: 0.0001))
     }
 
-
     /// Test that the language detection method works properly (MacOS 11 and onwards only)
     func testLanguageDetection() throws {
         if #available(iOS 14, macOS 11, *) {
@@ -120,7 +120,7 @@ class ClusteringTests: XCTestCase {
                     case .failure(let error):
                         XCTFail(error.localizedDescription)
                     case .success(let result):
-                        let _ = result.0
+                        _ = result.0
                     }
                     if page.offset == pages.count - 1 {
                         expectation.fulfill()
@@ -197,7 +197,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
                 if page.offset == pages.count - 1 {
                     expectation.fulfill()
@@ -227,7 +227,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
                 if page.offset == pages.count - 1 {
                     expectation.fulfill()
@@ -297,7 +297,7 @@ class ClusteringTests: XCTestCase {
             Page(id: 6, parentId: 0, title: "fille", content: "La fille est en train de porter un bébé.")
             ]
         for page in pages.enumerated() {
-            var ranking: [UInt64]? = nil
+            var ranking: [UInt64]?
             if page.offset == pages.count - 1 {
                 ranking = [1, 4, 2, 3, 5, 0]
             }
@@ -306,7 +306,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result
+                    _ = result
                 }
                 if page.offset == pages.count - 1 {
                     expectation.fulfill()
@@ -356,7 +356,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
                 if page.offset == firstPages.count - 1 {
                     firstExpectation.fulfill()
@@ -372,7 +372,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
                 if page.offset == secondPages.count - 1 {
                     secondExpectation.fulfill()
@@ -396,7 +396,7 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
             })
         }
@@ -407,9 +407,9 @@ class ClusteringTests: XCTestCase {
                 case .failure(let error):
                     XCTFail(error.localizedDescription)
                 case .success(let result):
-                    let _ = result.0
+                    _ = result.0
                 }
-                if i == 2{
+                if i == 2 {
                     expectation.fulfill()
                 }
             })
@@ -428,4 +428,5 @@ class ClusteringTests: XCTestCase {
         expect(cluster.pages[0].id) == UInt64(1)
         expect(cluster.pages[0].attachedPages) == [0]
     }
+    // swiftlint:disable:next file_length
 }
