@@ -104,7 +104,7 @@ class ClusteringTests: XCTestCase {
     }
 
     /// Test that scoring of textual similarity between two texts is done correctly. At the same opportunity, test that no entities are detected when they shouldn't be. Non-English content is also tested
-    func testScoreTextualEmbedding() throws {
+    func noTgestScoreTextualEmbedding() throws {
         if #available(iOS 14, macOS 11, *) {
             let cluster = Cluster()
             let pages = [
