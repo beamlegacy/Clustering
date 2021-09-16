@@ -306,7 +306,7 @@ public class Cluster {
     func textualEmbeddingComputationWithNLEmbedding(text: String) -> ([Double], NLLanguage)? {
         if let language = self.getTextLanguage(text: text),
            #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
-            if let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language),
+            if let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language, revision: 1),
                let vector = sentenceEmbedding.vector(for: text) {
                     return (vector, language)
             }
@@ -354,7 +354,6 @@ public class Cluster {
     /// - Returns: The dominant language.
     func getTextLanguage(text: String) -> NLLanguage? {
         let languageToReturn = NLLanguageRecognizer.dominantLanguage(for: text)
-        print(languageToReturn)
         return languageToReturn
     }
 
