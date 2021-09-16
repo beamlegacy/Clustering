@@ -439,6 +439,7 @@ class ClusteringTests: XCTestCase {
         var vector: [Double]?
         if #available(iOS 14, macOS 11, *),
            let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language) {
+            print("I got in here")
             vector = sentenceEmbedding.vector(for: "Un homme mange")
         }
         expect(vector).toNot(beNil())
