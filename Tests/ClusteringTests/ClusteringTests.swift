@@ -111,8 +111,8 @@ class ClusteringTests: XCTestCase {
             let pages = [
                 Page(id: 0, parentId: nil, title: nil, content: "A man is eating food."),
                 Page(id: 1, parentId: 0, title: nil, content: "A man is eating a piece of bread."),
-                Page(id: 2, parentId: 0, title: nil, content: "Un homme mange du pain et evidemment il faut plus de text pour reconnaître le français."),
-                Page(id: 3, parentId: nil, title: nil, content: "Un homme mange mais je vais ajouter un peu plus de texte quand même.")
+                Page(id: 2, parentId: 0, title: nil, content: "Un homme mange du pain"),
+                Page(id: 3, parentId: nil, title: nil, content: "Un homme mange")
                 ]
             let expectation = self.expectation(description: "Add page expectation")
             for page in pages.enumerated() {
@@ -122,16 +122,16 @@ class ClusteringTests: XCTestCase {
                         XCTFail(error.localizedDescription)
                     case .success(let result):
                         _ = result.0
-                    }
-                    if page.offset == pages.count - 1 {
-                        expectation.fulfill()
+                        if page.offset == pages.count - 1 {
+                            expectation.fulfill()
+                        }
                     }
                 })
             }
             wait(for: [expectation], timeout: 1)
             expect(cluster.pages[2].language) == NLLanguage.french
             expect(cluster.pages[3].language) == NLLanguage.french
-            expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.9531, 1, 1, 0.9531, 0], within: 0.0001))
+            expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.895, 1, 1, 0.895, 0], within: 0.0001))
             expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
         }
     }
