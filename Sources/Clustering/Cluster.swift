@@ -354,6 +354,7 @@ public class Cluster {
     /// - Returns: The dominant language.
     func getTextLanguage(text: String) -> NLLanguage? {
         let languageToReturn = NLLanguageRecognizer.dominantLanguage(for: text)
+        print(languageToReturn)
         return languageToReturn
     }
 
