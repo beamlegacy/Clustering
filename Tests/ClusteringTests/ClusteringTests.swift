@@ -98,8 +98,8 @@ class ClusteringTests: XCTestCase {
         if #available(iOS 14, macOS 11, *) {
             let cluster = Cluster()
             expect(cluster.getTextLanguage(text: "Roger Federer is the greatest of all time")) == NLLanguage.english
+            expect(cluster.getTextLanguage(text: "Un homme mange du paingt")) == NLLanguage.french
             expect(cluster.getTextLanguage(text: "Roger Federer est le meilleur joueur de tous les temps")) == NLLanguage.french
-            expect(cluster.getTextLanguage(text: "Un homme mange du paing")) == NLLanguage.french
             expect(cluster.getTextLanguage(text: "רוג׳ר פדרר הוא השחקן הטוב ביותר בכל הזמנים")) == NLLanguage.hebrew
         }
     }
