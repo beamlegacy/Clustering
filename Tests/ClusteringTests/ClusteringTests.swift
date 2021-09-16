@@ -433,5 +433,15 @@ class ClusteringTests: XCTestCase {
         expect(cluster.pages[0].id) == UInt64(1)
         expect(cluster.pages[0].attachedPages) == [0]
     }
+
+    func testForCI() throws {
+        let language = NLLanguage.french
+        var vector: [Double]?
+        if #available(iOS 14, macOS 11, *),
+           let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language) {
+            vector = sentenceEmbedding.vector(for: "Un homme mange")
+        }
+        expect(vector).toNot(beNil())
+    }
     // swiftlint:disable:next file_length
 }
