@@ -98,20 +98,21 @@ class ClusteringTests: XCTestCase {
         if #available(iOS 14, macOS 11, *) {
             let cluster = Cluster()
             expect(cluster.getTextLanguage(text: "Roger Federer is the greatest of all time")) == NLLanguage.english
+            expect(cluster.getTextLanguage(text: "Un homme mange du paingt")) == NLLanguage.french
             expect(cluster.getTextLanguage(text: "Roger Federer est le meilleur joueur de tous les temps")) == NLLanguage.french
             expect(cluster.getTextLanguage(text: "רוג׳ר פדרר הוא השחקן הטוב ביותר בכל הזמנים")) == NLLanguage.hebrew
         }
     }
 
     /// Test that scoring of textual similarity between two texts is done correctly. At the same opportunity, test that no entities are detected when they shouldn't be. Non-English content is also tested
-    func noTgestScoreTextualEmbedding() throws {
+    func testScoreTextualEmbedding() throws {
         if #available(iOS 14, macOS 11, *) {
             let cluster = Cluster()
             let pages = [
                 Page(id: 0, parentId: nil, title: nil, content: "A man is eating food."),
                 Page(id: 1, parentId: 0, title: nil, content: "A man is eating a piece of bread."),
-                Page(id: 2, parentId: 0, title: nil, content: "Un homme mange du pain et evidemment il faut plus de text pour reconnaître le français."),
-                Page(id: 3, parentId: nil, title: nil, content: "Un homme mange mais je vais ajouter un peu plus de texte quand même.")
+                Page(id: 2, parentId: 0, title: nil, content: "Un homme mange du pain"),
+                Page(id: 3, parentId: nil, title: nil, content: "Un homme mange")
                 ]
             let expectation = self.expectation(description: "Add page expectation")
             for page in pages.enumerated() {
@@ -128,10 +129,17 @@ class ClusteringTests: XCTestCase {
                 })
             }
             wait(for: [expectation], timeout: 1)
-            expect(cluster.pages[2].language) == NLLanguage.french
-            expect(cluster.pages[3].language) == NLLanguage.french
-            expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.9531, 1, 1, 0.9531, 0], within: 0.0001))
             expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+            let embedders = (NLEmbedding.sentenceEmbedding(for: NLLanguage.english), NLEmbedding.sentenceEmbedding(for: NLLanguage.french))
+            if embedders == (nil, nil) {
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0], within: 0.0001))
+            } else if embedders.1 == nil {
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0], within: 0.0001))
+            } else if embedders.0 == nil {
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0.895, 1, 1, 0.895, 0], within: 0.0001))
+            } else {
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.895, 1, 1, 0.895, 0], within: 0.0001))
+            }
         }
     }
 
