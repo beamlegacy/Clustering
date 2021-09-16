@@ -122,13 +122,15 @@ class ClusteringTests: XCTestCase {
                         XCTFail(error.localizedDescription)
                     case .success(let result):
                         _ = result.0
-                        if page.offset == pages.count - 1 {
-                            expectation.fulfill()
-                        }
+                    }
+                    if page.offset == pages.count - 1 {
+                        expectation.fulfill()
                     }
                 })
             }
             wait(for: [expectation], timeout: 1)
+            expect(Array(cluster.pages[2].textEmbedding!.dropLast(635))).to(beCloseTo([-0.00016459879407193512, -0.0033394608180969954, -0.0012091437820345163, 0.0010445412481203675, 0.0004237633547745645], within: 0.00001))
+            expect(Array(cluster.pages[3].textEmbedding!.dropLast(635))).to(beCloseTo([-0.0002759764902293682, -0.004110698588192463, -0.0018421988934278488, 0.0031264913268387318, 0.0009113883133977652], within: 0.00001))
             expect(cluster.pages[2].language) == NLLanguage.french
             expect(cluster.pages[3].language) == NLLanguage.french
             expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.8294351697354525, 1, 1, 0.8294351697354525, 0, 1, 1, 1, 1, 0, 0.895, 1, 1, 0.895, 0], within: 0.0001))
