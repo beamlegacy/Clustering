@@ -74,6 +74,7 @@ public class Cluster {
     enum AdditionError: Error {
         case moreThanOneObjectToAdd
         case noObjectsToAdd
+        case notEnoughTextInNote
     }
 
     let myQueue = DispatchQueue(label: "clusteringQueue")
@@ -90,6 +91,7 @@ public class Cluster {
     var timeToRemove: Double = 0.5 // If clustering takes more than this (in seconds) we start removing pages
     let titleSuffixes = [" - Google Search", " - YouTube"]
     let beta = 50.0
+    var noteContentThreshold: Int
 
     //Define which Laplacian to use
     var laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
@@ -101,11 +103,12 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.8, weightEntities: Double = 0.5) {
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.8, weightEntities: Double = 0.5, noteContentThreshold: Int = 100) {
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
         self.weights[.entities] = weightEntities
+        self.noteContentThreshold = noteContentThreshold
         do {
             try self.performCandidateChange()
         } catch {
@@ -824,6 +827,14 @@ public class Cluster {
                 // deleted pages
                 if let page = page {
                     self.removeFromDeleted(newPageID: page.id)
+                }
+                // If new note without enogh text, abort
+                if let note = note {
+                    guard let content = note.content,
+                          content.split(separator: " ").count > self.noteContentThreshold else {
+                              completion(.failure(AdditionError.notEnoughTextInNote))
+                              return
+                          }
                 }
                 // Navigation matrix computation
                 var navigationSimilarities = [Double](repeating: 0.0, count: self.adjacencyMatrix.rows)
