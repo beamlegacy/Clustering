@@ -71,7 +71,7 @@ public class Cluster {
         case unknownMatrixType
     }
 
-    enum AdditionError: Error {
+    public enum AdditionError: Error {
         case moreThanOneObjectToAdd
         case noObjectsToAdd
         case notEnoughTextInNote
