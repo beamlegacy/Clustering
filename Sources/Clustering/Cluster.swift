@@ -103,7 +103,7 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.8, weightEntities: Double = 0.5, noteContentThreshold: Int = 100) {
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.4, noteContentThreshold: Int = 100) {
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
@@ -285,19 +285,30 @@ public class Cluster {
             points.append(Vector(eigenVcts[row: row]))
         }
         let labels = [Int](0...numClusters - 1)
-        var predictedLabels: [Int]
+        var bestPredictedLabels: [Int]?
+        var bestLabelsScore: Int?
+        var predictedLabels: [Int] = []
         let kmeans = KMeans(labels: labels)
-        var tentatives = 0
-        repeat {
+        for _ in 1...3 {
             predictedLabels = []
             kmeans.trainCenters(points, convergeDistance: 0.00001)
             for point in points {
                 predictedLabels.append(kmeans.fit(point))
             }
-            tentatives += 1
-        } while Set(predictedLabels).count < eigenVals.count && tentatives <= 3
-
-       return predictedLabels
+            var newLabelScore = 0
+            for label in predictedLabels[0..<self.notes.count] {
+                newLabelScore += predictedLabels.filter{ $0 == label }.count
+            }
+            if bestLabelsScore == nil || newLabelScore < (bestLabelsScore ?? 1000) {
+                bestLabelsScore = newLabelScore
+                bestPredictedLabels = predictedLabels
+            }
+        }
+        if let bestPredictedLabels = bestPredictedLabels {
+            return bestPredictedLabels
+        } else {
+            return predictedLabels
+        }
     }
 
     ///  Compute the embedding of the given piece of text if the language of the text is detectable
@@ -375,13 +386,13 @@ public class Cluster {
          for note in notes.enumerated() {
             if dataPointType == . note {
                 if !changeContent && note.offset == index { break }
-                scores.append(0.0)
+                scores.append(-0.5)
             } else if let textualVectorID = note.element.textEmbedding,
                       let textLanguage = note.element.language,
                       textLanguage == language {
                 scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
             } else {
-                scores.append(0.0)
+                scores.append(-0.5)
             }
         }
 
@@ -390,7 +401,7 @@ public class Cluster {
             // then the score will be 0.0
             if page.offset == index && dataPointType == .page {
                 if changeContent {
-                    scores.append(0.0)
+                    scores.append(-0.5)
                 } else { break }
             } else if let textualVectorID = page.element.textEmbedding,
                       let textLanguage = page.element.language,
@@ -426,7 +437,7 @@ public class Cluster {
                 } else if let entitiesInNote = note.element.entities {
                     scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInNote))
                 } else {
-                    scores.append(0.0)
+                    scores.append(-0.5)
                 }
             }
             for page in pages.enumerated() {
@@ -657,8 +668,8 @@ public class Cluster {
             self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
         case .fixedPagesTestNotes:
             let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
-            let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.8, beta: self.beta)
-            let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.5, beta: self.beta)
+            let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.9, beta: self.beta)
+            let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.4, beta: self.beta)
             let adjacencyForPages = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
             self.adjacencyMatrix = adjacencyForPages
         }
@@ -670,7 +681,7 @@ public class Cluster {
         case .nothing:
             break
         case .fixed:
-            adjacencyForNotes = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols] + self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 1, beta: self.beta)
+            adjacencyForNotes = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols] + self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 1.2, beta: self.beta)
         case .combinationAfterSigmoid:
             adjacencyForNotes = (self.weights[.text] ?? 0.5) .* self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols], middle: 1, beta: self.beta) + (self.weights[.entities] ?? 0.5) .* self.performSigmoidOn(matrix: self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: (self.weights[.navigation] ?? 0.5) * 2, beta: beta)
         case .combinationBeforeSigmoid:
@@ -695,12 +706,12 @@ public class Cluster {
         while pagesRemoved < 3 {
             if let pageToRemove = ranking.first {
                 if let pageIndexToRemove = self.findPageInPages(pageID: pageToRemove) {
-                    var adjacencyVector = self.adjacencyMatrix[row: pageIndexToRemove + self.notes.count]
-                    adjacencyVector.removeFirst(self.notes.count)
-                    if let pageIndexToAttach = adjacencyVector.firstIndex(of: max(adjacencyVector)) {
-                        pages[pageIndexToAttach].attachedPages.append(pageToRemove)
-                        pages[pageIndexToAttach].attachedPages += pages[pageIndexToRemove].attachedPages
-                    }
+//                    var adjacencyVector = self.adjacencyMatrix[row: pageIndexToRemove + self.notes.count]
+//                    adjacencyVector.removeFirst(self.notes.count)
+//                    if let pageIndexToAttach = adjacencyVector.firstIndex(of: max(adjacencyVector)) {
+//                        pages[pageIndexToAttach].attachedPages.append(pageToRemove)
+//                        pages[pageIndexToAttach].attachedPages += pages[pageIndexToRemove].attachedPages
+//                    }
                     try self.navigationMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.textualSimilarityMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.entitiesMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
