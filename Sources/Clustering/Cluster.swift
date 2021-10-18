@@ -297,7 +297,12 @@ public class Cluster {
             }
             var newLabelScore = 0
             for label in predictedLabels[0..<self.notes.count] {
-                newLabelScore += predictedLabels.filter{ $0 == label }.count
+                let numPointsWithNote = predictedLabels.filter{ $0 == label }.count - 1
+                if numPointsWithNote > 0 {
+                    newLabelScore += predictedLabels.filter{ $0 == label }.count
+                } else {
+                    newLabelScore -= 5
+                }
             }
             if bestLabelsScore == nil || newLabelScore < (bestLabelsScore ?? 1000) {
                 bestLabelsScore = newLabelScore
