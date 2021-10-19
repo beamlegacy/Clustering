@@ -609,7 +609,7 @@ public class Cluster {
     /// - Parameters:
     ///   - pageID: The ID of the desired page
     /// - Returns: The index of the page in the pages array, if it exists
-    func findPageInPages(pageID: UInt64) -> Int? {
+    func findPageInPages(pageID: UUID) -> Int? {
         let pageIDs = self.pages.map({ $0.id })
         return pageIDs.firstIndex(of: pageID)
     }
@@ -705,7 +705,7 @@ public class Cluster {
     /// - Parameters:
     ///   - ranking: A list of all pages, ranked in the order of their score (from
     ///             the lowest to the highest)
-    func remove(ranking: [UInt64]) throws {
+    func remove(ranking: [UUID]) throws {
         var ranking = ranking
         var pagesRemoved = 0
         while pagesRemoved < 3 {
@@ -751,7 +751,7 @@ public class Cluster {
     ///
     /// - Parameters:
     ///   - newPageID: the ID of the page to add
-    func removeFromDeleted(newPageID: UInt64) {
+    func removeFromDeleted(newPageID: UUID) {
         for page in self.pages.enumerated() {
             pages[page.offset].attachedPages = page.element.attachedPages.filter {$0 != newPageID}
         }
@@ -774,7 +774,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UInt64]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
         myQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
@@ -937,13 +937,13 @@ public class Cluster {
     ///   - labels: A stabilized list of labels, corresponding to all data points
     /// - Returns: - An array of arrays of all pages, by groups
     ///            - An array of arrays of all notes, by groups corresponding to the pages
-    private func clusterizeIDs(labels: [Int]) -> ([[UInt64]], [[UUID]]) {
-        guard self.notes.count + self.pages.count > 0 else { return ([[UInt64]](), [[UUID]]())}
+    private func clusterizeIDs(labels: [Int]) -> ([[UUID]], [[UUID]]) {
+        guard self.notes.count + self.pages.count > 0 else { return ([[UUID]](), [[UUID]]())}
 
-        var clusterizedPages = [[UInt64]]()
+        var clusterizedPages = [[UUID]]()
         if labels.count > 0 {
             for _ in 0...(labels.max() ?? 0) {
-                clusterizedPages.append([UInt64]())
+                clusterizedPages.append([UUID]())
             }
         }
         var clusterizedNotes = [[UUID]]()
@@ -1000,7 +1000,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next large_tuple
-    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UInt64]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
         myQueue.async {
             // If ranking is received, remove pages
             self.candidate = candidate ?? self.candidate

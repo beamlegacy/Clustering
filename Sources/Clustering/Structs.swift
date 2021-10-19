@@ -6,22 +6,22 @@ struct EntitiesInText {
 }
 
 public struct Page {
-    public init(id: UInt64, parentId: UInt64? = nil, title: String? = nil, content: String? = nil) {
+    public init(id: UUID, parentId: UUID? = nil, title: String? = nil, content: String? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
         self.content = content
     }
 
-    var id: UInt64
-    var parentId: UInt64?
+    var id: UUID
+    var parentId: UUID?
     var title: String?
     var content: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
     var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
-    var attachedPages = [UInt64]()
+    var attachedPages = [UUID]()
 }
 
 public struct ClusteringNote {

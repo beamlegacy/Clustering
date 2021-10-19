@@ -109,11 +109,15 @@ class ClusteringTests: XCTestCase {
     func testScoreTextualEmbedding() throws {
         if #available(iOS 14, macOS 11, *) {
             let cluster = Cluster()
+            var UUIDs: [UUID] = []
+            for _ in 0...3 {
+                UUIDs.append(UUID())
+            }
             let pages = [
-                Page(id: 0, parentId: nil, title: nil, content: "A man is eating food."),
-                Page(id: 1, parentId: 0, title: nil, content: "A man is eating a piece of bread."),
-                Page(id: 2, parentId: 0, title: nil, content: "Un homme mange du pain"),
-                Page(id: 3, parentId: nil, title: nil, content: "Un homme mange")
+                Page(id: UUIDs[0], parentId: nil, title: nil, content: "A man is eating food."),
+                Page(id: UUIDs[1], parentId: UUIDs[0], title: nil, content: "A man is eating a piece of bread."),
+                Page(id: UUIDs[2], parentId: UUIDs[0], title: nil, content: "Un homme mange du pain"),
+                Page(id: UUIDs[3], parentId: nil, title: nil, content: "Un homme mange")
                 ]
             let expectation = self.expectation(description: "Add page expectation")
             for page in pages.enumerated() {
@@ -147,12 +151,15 @@ class ClusteringTests: XCTestCase {
     /// Test the whole process of starting a session, adding pages and clustering, when only a  navigation matrix is available.
     func testClusteringWithOnlyNavigation() throws {
         let cluster = Cluster()
-        let ids: [UInt64] = Array(0...5)
+        var ids: [UUID] = []
+        for _ in 0...5 {
+            ids.append(UUID())
+        }
         let parents = [1: 0, 2: 0, 4: 3, 5: 1]
         let correct_results = [[[ids[0]]], [[ids[0], ids[1]]], [[ids[0], ids[1], ids[2]]], [[ids[0], ids[1], ids[2]], [ids[3]]], [[ids[0], ids[1], ids[2]], [ids[3], ids[4]]], [[ids[0], ids[1], ids[2], ids[5]], [ids[3], ids[4]]]]
         let expectation = XCTestExpectation(description: "Add page expectation")
         for i in 0...5 {
-            var from: UInt64?
+            var from: UUID?
             if let parent = parents[i] {
                 from = ids[parent]
             }
@@ -197,10 +204,14 @@ class ClusteringTests: XCTestCase {
     func testEntitySimilarityOverTitles() throws {
         let cluster = Cluster()
         let expectation = self.expectation(description: "Add page expectation")
+        var UUIDs: [UUID] = []
+        for _ in 0...2 {
+            UUIDs.append(UUID())
+        }
         let pages = [
-            Page(id: 0, parentId: nil, title: "roger federer - Google search", content: nil),
-            Page(id: 1, parentId: 0, title: "Roger Federer", content: nil),
-            Page(id: 2, parentId: 0, title: "Pete Sampras", content: nil)
+            Page(id: UUIDs[0], parentId: nil, title: "roger federer - Google search", content: nil),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: "Roger Federer", content: nil),
+            Page(id: UUIDs[2], parentId: UUIDs[0], title: "Pete Sampras", content: nil)
             ]
         for page in pages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
@@ -227,10 +238,14 @@ class ClusteringTests: XCTestCase {
     func testAllSimilarityMatrices() throws {
         let cluster = Cluster()
         let expectation = self.expectation(description: "Add page expectation")
+        var UUIDs: [UUID] = []
+        for _ in 0...2 {
+            UUIDs.append(UUID())
+        }
         let pages = [
-            Page(id: 0, parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
-            Page(id: 1, parentId: 0, title: nil, content: "Tennis is a very fun game"),
-            Page(id: 2, parentId: 0, title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
+            Page(id: UUIDs[0], parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: nil, content: "Tennis is a very fun game"),
+            Page(id: UUIDs[2], parentId: UUIDs[0], title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
             ]
         for page in pages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
@@ -271,10 +286,14 @@ class ClusteringTests: XCTestCase {
         let cluster = Cluster()
         let expectation = self.expectation(description: "Raise remove flag")
         cluster.timeToRemove = 0.0
+        var UUIDs: [UUID] = []
+        for _ in 0...2 {
+            UUIDs.append(UUID())
+        }
         let pages = [
-            Page(id: 0, parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
-            Page(id: 1, parentId: 0, title: nil, content: "Tennis is a very fun game"),
-            Page(id: 2, parentId: 0, title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
+            Page(id: UUIDs[0], parentId: nil, title: nil, content: "Roger Federer is the best tennis player to ever play the game, but Rafael Nadal is best on clay"),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: nil, content: "Tennis is a very fun game"),
+            Page(id: UUIDs[2], parentId: UUIDs[0], title: nil, content: "Pete Sampras and Roger Federer played 4 exhibition matches in 2008")
             ]
         for page in pages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
@@ -300,19 +319,23 @@ class ClusteringTests: XCTestCase {
         cluster.noteContentThreshold = 3
         // Here we don't want to test that notes with little content are not added
         let expectation = self.expectation(description: "Add page expectation")
+        var UUIDs: [UUID] = []
+        for _ in 0...6 {
+            UUIDs.append(UUID())
+        }
         let pages = [
-            Page(id: 0, parentId: nil, title: "man", content: "A man is eating food."),
-            Page(id: 1, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
-            Page(id: 2, parentId: 0, title: "man", content: "A man is eating food."),
-            Page(id: 3, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
-            Page(id: 4, parentId: 0, title: "girl", content: "The girl is carrying a baby."),
-            Page(id: 5, parentId: 0, title: "man", content: "A man is eating food."),
-            Page(id: 6, parentId: 0, title: "fille", content: "La fille est en train de porter un bébé.")
+            Page(id: UUIDs[0], parentId: nil, title: "man", content: "A man is eating food."),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: "girl", content: "The girl is carrying a baby."),
+            Page(id: UUIDs[2], parentId: UUIDs[0], title: "man", content: "A man is eating food."),
+            Page(id: UUIDs[3], parentId: UUIDs[0], title: "girl", content: "The girl is carrying a baby."),
+            Page(id: UUIDs[4], parentId: UUIDs[0], title: "girl", content: "The girl is carrying a baby."),
+            Page(id: UUIDs[5], parentId: UUIDs[0], title: "man", content: "A man is eating food."),
+            Page(id: UUIDs[6], parentId: UUIDs[0], title: "fille", content: "La fille est en train de porter un bébé.")
             ]
         for page in pages.enumerated() {
-            var ranking: [UInt64]?
+            var ranking: [UUID]?
             if page.offset == pages.count - 1 {
-                ranking = [1, 4, 2, 3, 5, 0]
+                ranking = [UUIDs[1], UUIDs[4], UUIDs[2], UUIDs[3], UUIDs[5], UUIDs[0]]
             }
             cluster.add(page: page.element, ranking: ranking, completion: { result in
                 switch result {
@@ -339,7 +362,7 @@ class ClusteringTests: XCTestCase {
             }
         }
         wait(for: [expectation], timeout: 1)
-        var attachedPages = [UInt64]()
+        var attachedPages = [UUID]()
         for page in cluster.pages {
             attachedPages += page.attachedPages
         }
@@ -354,14 +377,18 @@ class ClusteringTests: XCTestCase {
         let cluster = Cluster()
         let firstExpectation = self.expectation(description: "Add page expectation")
         let secondExpectation = self.expectation(description: "Add page expectation")
+        var UUIDs: [UUID] = []
+        for _ in 0...4 {
+            UUIDs.append(UUID())
+        }
         let firstPages = [
-            Page(id: 0, parentId: nil, title: "Page 1", content: "A man is eating food."),
-            Page(id: 1, parentId: 0, title: "Page 2", content: "The girl is carrying a baby."),
-            Page(id: 2, parentId: 0, title: "Page 3", content: "A man is eating food.")
+            Page(id: UUIDs[0], parentId: nil, title: "Page 1", content: "A man is eating food."),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: "Page 2", content: "The girl is carrying a baby."),
+            Page(id: UUIDs[2], parentId: UUIDs[0], title: "Page 3", content: "A man is eating food.")
             ]
         let secondPages = [
-            Page(id: 3, parentId: 0, title: "Page 4", content: "The girl is carrying a baby."),
-            Page(id: 4, parentId: 0, title: "Page 5", content: "The girl is carrying a baby.")
+            Page(id: UUIDs[3], parentId: UUIDs[0], title: "Page 4", content: "The girl is carrying a baby."),
+            Page(id: UUIDs[4], parentId: UUIDs[0], title: "Page 5", content: "The girl is carrying a baby.")
             ]
         for page in firstPages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
@@ -377,8 +404,8 @@ class ClusteringTests: XCTestCase {
             })
         }
         wait(for: [firstExpectation], timeout: 1)
-        cluster.pages[0].attachedPages = [3]
-        cluster.pages[1].attachedPages = [4]
+        cluster.pages[0].attachedPages = [UUIDs[3]]
+        cluster.pages[1].attachedPages = [UUIDs[4]]
         for page in secondPages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
@@ -403,8 +430,10 @@ class ClusteringTests: XCTestCase {
         cluster.noteContentThreshold = 3
         // Here we don't want to test that notes with little content are not added
         let expectation = self.expectation(description: "Add note expectation")
+        var UUIDs: [UUID] = []
         for i in 0...5 {
-            let myPage = Page(id: UInt64(i), parentId: nil, title: nil, content: "Here's some text for you")
+            UUIDs.append(UUID())
+            let myPage = Page(id: UUIDs[i], parentId: nil, title: nil, content: "Here's some text for you")
             // The pages themselves don't matter as we will later force the similarity matrix
             cluster.add(page: myPage, ranking: nil, completion: { result in
                 switch result {
@@ -439,8 +468,8 @@ class ClusteringTests: XCTestCase {
                                    [0.6, 0.4, 0.3, 0.5, 0.2, 0.6, 0, 0.9, 0.3],
                                    [0.5, 0.5, 0.3, 0.5, 0.1, 0.2, 0.9, 0, 0.4],
                                    [0.4, 0.6, 0.3, 0.5, 0.1, 0.1, 0.3, 0.4, 0]])
-        try cluster.remove(ranking: [0])
-        expect(cluster.pages[0].id) == UInt64(1)
+        try cluster.remove(ranking: [UUIDs[0]])
+        expect(cluster.pages[0].id) == UUIDs[1]
         expect(cluster.pages[0].attachedPages) == [] // [0]
     }
 
