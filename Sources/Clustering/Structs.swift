@@ -6,17 +6,19 @@ struct EntitiesInText {
 }
 
 public struct Page {
-    public init(id: UInt64, parentId: UInt64? = nil, title: String? = nil, content: String? = nil) {
+    public init(id: UInt64, parentId: UInt64? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
-        self.content = content
+        self.originalContent = originalContent
+        self.cleanedContent = cleanedContent
     }
 
     var id: UInt64
     var parentId: UInt64?
     var title: String?
-    var content: String?
+    var originalContent: [String]?
+    var cleanedContent: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
     var language: NLLanguage?
