@@ -92,6 +92,7 @@ public class Cluster {
     let titleSuffixes = [" - Google Search", " - YouTube"]
     let beta = 50.0
     var noteContentThreshold: Int
+    let extractor = JusText()
 
     //Define which Laplacian to use
     var laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
@@ -322,15 +323,13 @@ public class Cluster {
     /// - Parameters:
     ///   - text: The text that will be turned into a contextual vector (embedding)
     /// - Returns: The embedding of the given piece of text as an optional and the dominating language of the text, as an optional.
-    func textualEmbeddingComputationWithNLEmbedding(text: String) -> ([Double], NLLanguage)? {
-        if let language = self.getTextLanguage(text: text),
-           #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
+    func textualEmbeddingComputationWithNLEmbedding(text: String, language: NLLanguage) -> [Double]? {
+        if #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
             if let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language),
                let vector = sentenceEmbedding.vector(for: text) {
-                    return (vector, language)
+                    return vector
             }
         }
-
         return nil
     }
 
@@ -366,16 +365,6 @@ public class Cluster {
         return dotProduct / (vec1Normed * vec2Normed)
     }
 
-    /// Detect the dominant language of a given text..
-    ///
-    /// - Parameters:
-    ///   - text: The text from which the dominant language is detected
-    /// - Returns: The dominant language.
-    func getTextLanguage(text: String) -> NLLanguage? {
-        let languageToReturn = NLLanguageRecognizer.dominantLanguage(for: text)
-        return languageToReturn
-    }
-
     /// Compute the cosine similarity of the textual embedding of the current data point
     /// against all existing data point
     ///
@@ -386,7 +375,7 @@ public class Cluster {
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
     /// - Returns: A list of cosine similarity scores
-    func scoreTextualSimilarity(textualEmbedding: [Double], language: NLLanguage, index: Int, dataPointType: DataPoint, changeContent: Bool = false) -> [Double] {
+    func scoreTextualSimilarity(textualEmbedding: [Double]?, language: NLLanguage, index: Int, dataPointType: DataPoint, changeContent: Bool = false) -> [Double] {
         var scores = [Double]()
          for note in notes.enumerated() {
             if dataPointType == . note {
@@ -394,6 +383,7 @@ public class Cluster {
                 scores.append(-0.5)
             } else if let textualVectorID = note.element.textEmbedding,
                       let textLanguage = note.element.language,
+                      let textualEmbedding = textualEmbedding,
                       textLanguage == language {
                 scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
             } else {
@@ -408,10 +398,14 @@ public class Cluster {
                 if changeContent {
                     scores.append(-0.5)
                 } else { break }
-            } else if let textualVectorID = page.element.textEmbedding,
-                      let textLanguage = page.element.language,
-                      textLanguage ==  language {
+            } else if let textLanguage = page.element.language,
+                      textLanguage == language {
+                if let textualVectorID = page.element.textEmbedding,
+                   let textualEmbedding = textualEmbedding {
                     scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
+                } else {
+                    scores.append(0.0)
+                }
             } else if dataPointType == .page {
                 scores.append(1.0) // We don't want to "break" connections between langauges
             } else {
@@ -486,6 +480,7 @@ public class Cluster {
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
     func textualSimilarityProcess(index: Int, dataPointType: DataPoint, changeContent: Bool = false) throws {
         var content: String?
+        var language: NLLanguage?
         var scores = [Double](repeating: 0.0, count: self.textualSimilarityMatrix.matrix.rows)
         if dataPointType == .page {
             scores = [Double](repeating: 0.0, count: max(self.notes.count, 0))
@@ -493,7 +488,8 @@ public class Cluster {
             if changeContent {
                 scores.append(1.0)
             }
-            content = pages[index].content
+            content = pages[index].cleanedContent
+            language = pages[index].language
         } else {
             scores = [Double](repeating: 0.0, count: max(self.notes.count - 1, 0))
             scores += [Double](repeating: 1.0, count: max(self.pages.count, 0))
@@ -501,17 +497,17 @@ public class Cluster {
                 scores.insert(0.0, at: 0)
             }
             content = notes[index].content
+            language = notes[index].language
         }
         if let content = content,
-           let (textualEmbedding, language) = self.textualEmbeddingComputationWithNLEmbedding(text: content) {
+           let language = language {
+            let textualEmbedding = self.textualEmbeddingComputationWithNLEmbedding(text: content, language: language)
             scores = self.scoreTextualSimilarity(textualEmbedding: textualEmbedding, language: language, index: index, dataPointType: dataPointType, changeContent: changeContent)
             switch dataPointType {
             case .page:
                 pages[index].textEmbedding = textualEmbedding
-                pages[index].language = language
             case .note:
                 notes[index].textEmbedding = textualEmbedding
-                notes[index].language = language
             }
         }
         if changeContent {
@@ -539,7 +535,7 @@ public class Cluster {
         var title: String?
         switch dataPointType {
         case .page:
-            content = self.pages[index].content
+            content = self.pages[index].cleanedContent
             title = self.pages[index].title
         case .note:
             content = self.notes[index].content
@@ -801,13 +797,13 @@ public class Cluster {
             if let page = page,
                let id_index = self.findPageInPages(pageID: page.id) {
                 if replaceContent,
-                   let newContent = page.content {
+                   let newContent = page.cleanedContent {
                     // Update content through PnS
-                    let totalContentTokenized = (newContent + " " + (self.pages[id_index].content ?? "")).split(separator: " ")
+                    let totalContentTokenized = (newContent + " " + (self.pages[id_index].cleanedContent ?? "")).split(separator: " ")
                     if totalContentTokenized.count > 512 {
-                        self.pages[id_index].content = totalContentTokenized.dropLast(totalContentTokenized.count - 512).joined(separator: " ")
+                        self.pages[id_index].cleanedContent = totalContentTokenized.dropLast(totalContentTokenized.count - 512).joined(separator: " ")
                     } else {
-                        self.pages[id_index].content = totalContentTokenized.joined(separator: " ")
+                        self.pages[id_index].cleanedContent = totalContentTokenized.joined(separator: " ")
                     }
                     do {
                         try self.textualSimilarityProcess(index: id_index, dataPointType: dataPointType, changeContent: true)
@@ -828,6 +824,7 @@ public class Cluster {
                 do {
                     if let newContent = note.content {
                         self.notes[id_index].content = newContent
+                        self.notes[id_index].language = self.extractor.getTextLanguage(text: self.notes[id_index].content ?? "")
                     }
                     if let newTitle = note.title {
                         self.notes[id_index].title = self.titlePreprocessing(of: newTitle)
@@ -871,12 +868,18 @@ public class Cluster {
                     if let title = self.pages[newIndex].title {
                         self.pages[newIndex].title = self.titlePreprocessing(of: title)
                     }
+                    do {
+                        (self.pages[newIndex].cleanedContent, self.pages[newIndex].language) = try self.extractor.extract(from: self.pages[newIndex].originalContent ?? [""])
+                        self.pages[newIndex].originalContent = nil
+                    } catch {
+                    }
                 } else if let note = note {
                     newIndex = self.notes.count
                     self.notes.append(note)
                     if let title = self.notes[newIndex].title {
                         self.notes[newIndex].title = self.titlePreprocessing(of: title)
                     }
+                    self.notes[newIndex].language = self.extractor.getTextLanguage(text: self.notes[newIndex].content ?? "")
                 }
                 // Handle Text similarity and entities
                 do {
