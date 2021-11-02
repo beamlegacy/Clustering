@@ -191,13 +191,14 @@ class JusText {
         let lengths = self.rateLength(of: blocks)
         let stopwords = self.rateStopwordDensity(of: blocks, language: language)
         let temporaryRates = try self.determinePerBlock(blockLengths: lengths, blockStopWords: stopwords)
-        let finalRates = self.determineAllBlocks(blockClasses: temporaryRates)
-        guard finalRates.count == blocks.count else {
-            throw BlockClassesError.sizeMismatch
-        }
+//        let finalRates = self.determineAllBlocks(blockClasses: temporaryRates)
+//        guard finalRates.count == blocks.count else {
+//            throw BlockClassesError.sizeMismatch
+//        }
 
         var finalString = ""
-        for (block, rate) in zip(blocks, finalRates) {
+        for (block, rate) in zip(blocks, temporaryRates) {
+//        for (block, rate) in zip(blocks, finalRates) {
             if rate == .good {
                 finalString += " " + block
             }

@@ -14,7 +14,7 @@ class ClusteringTests: XCTestCase {
         expect(cluster.candidate) == 2
         expect(cluster.laplacianCandidate) == .randomWalkLaplacian
         expect(cluster.matrixCandidate) == .combinationSigmoidWithTextErasure
-        expect(cluster.noteMatrixCandidate) == .fixed
+        expect(cluster.noteMatrixCandidate) == .sigmoidOnEntities
         expect(cluster.numClustersCandidate) == .biggestDistanceInPercentages
         expect(cluster.weights[.navigation]) == 0.5
         expect(cluster.weights[.text]) == 0.9
@@ -142,37 +142,6 @@ class ClusteringTests: XCTestCase {
         }
     }
 
-    /// Test the whole process of starting a session, adding pages and clustering, when only a  navigation matrix is available.
-    func testClusteringWithOnlyNavigation() throws {
-        let cluster = Cluster()
-        var ids: [UUID] = []
-        for _ in 0...5 {
-            ids.append(UUID())
-        }
-        let parents = [1: 0, 2: 0, 4: 3, 5: 1]
-        let correct_results = [[[ids[0]]], [[ids[0], ids[1]]], [[ids[0], ids[1], ids[2]]], [[ids[0], ids[1], ids[2]], [ids[3]]], [[ids[0], ids[1], ids[2]], [ids[3], ids[4]]], [[ids[0], ids[1], ids[2], ids[5]], [ids[3], ids[4]]]]
-        let expectation = XCTestExpectation(description: "Add page expectation")
-        for i in 0...5 {
-            var from: UUID?
-            if let parent = parents[i] {
-                from = ids[parent]
-            }
-            let page = Page(id: ids[i], parentId: from, title: nil, cleanedContent: nil)
-            cluster.add(page: page, ranking: nil, completion: { result in
-                switch result {
-                case .failure(let error):
-                    XCTFail(error.localizedDescription)
-                case .success(let result):
-                    expect(result.0) == correct_results[i]
-                }
-                if i == 5 {
-                    expectation.fulfill()
-                }
-            })
-        }
-        wait(for: [expectation], timeout: 1)
-    }
-
     /// Test that entities are detected correctly in a text
     func testFindingEntities() throws {
         let cluster = Cluster()
@@ -249,7 +218,7 @@ class ClusteringTests: XCTestCase {
                     XCTFail(error.localizedDescription)
                 case .success(let result):
                     if page.offset == pages.count - 1 {
-                        expect(result.sendRanking) == true
+                        expect(result.flag) == .sendRanking
                     }
                 }
                 if page.offset == pages.count - 1 {
