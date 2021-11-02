@@ -83,7 +83,7 @@ class KMeans<Label: Hashable> {
     self.numCenters = labels.count
   }
 
-  private func indexOfNearestCenter(_ x: Vector, centers: [Vector]) -> Int {
+  private func indexOfNearestCenter(_ x: Vector, centers: [Vector]) -> (Int, Double) {
     var nearestDist = Double.greatestFiniteMagnitude
     var minIndex = 0
 
@@ -94,7 +94,7 @@ class KMeans<Label: Hashable> {
         nearestDist = dist
       }
     }
-    return minIndex
+    return (minIndex, nearestDist)
   }
 
   func trainCenters(_ points: [Vector], convergeDistance: Double) {
@@ -110,7 +110,7 @@ class KMeans<Label: Hashable> {
 
       // For each data point, find the centroid that it is closest to.
       for p in points {
-        let classIndex = indexOfNearestCenter(p, centers: centers)
+          let classIndex = indexOfNearestCenter(p, centers: centers).0
         classification[classIndex].append(p)
       }
 
@@ -133,14 +133,14 @@ class KMeans<Label: Hashable> {
     centroids = centers
   }
 
-  func fit(_ point: Vector) -> Label {
+  func fit(_ point: Vector) -> (Label, Double) {
     assert(!centroids.isEmpty, "Exception: KMeans tried to fit on a non trained model.")
 
-    let centroidIndex = indexOfNearestCenter(point, centers: centroids)
-    return labels[centroidIndex]
+    let (centroidIndex, centroidDistance) = indexOfNearestCenter(point, centers: centroids)
+    return (labels[centroidIndex], centroidDistance)
   }
 
-  func fit(_ points: [Vector]) -> [Label] {
+  func fit(_ points: [Vector]) -> [(Label, Double)] {
     assert(!centroids.isEmpty, "Exception: KMeans tried to fit on a non trained model.")
 
     return points.map(fit)

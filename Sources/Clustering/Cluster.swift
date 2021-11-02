@@ -28,6 +28,12 @@ public class Cluster {
         case middle
     }
 
+    public enum Flag {
+        case sendRanking
+        case addNotes
+        case none
+    }
+
     /// enums to control candidates
     enum LaplacianCandidate {
         case nonNormalizedLaplacian
@@ -48,6 +54,7 @@ public class Cluster {
         case fixed
         case combinationBeforeSigmoid
         case combinationAfterSigmoid
+        case sigmoidOnEntities
     }
 
     enum NumClusterComputationCandidate {
@@ -88,11 +95,13 @@ public class Cluster {
     let tagger = NLTagger(tagSchemes: [.nameType])
     let entityOptions: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
     let entityTags: [NLTag] = [.personalName, .placeName, .organizationName]
-    var timeToRemove: Double = 0.5 // If clustering takes more than this (in seconds) we start removing pages
+    var timeToRemove: Double = 3 // If clustering takes more than this (in seconds) we start removing pages
     let titleSuffixes = [" - Google Search", " - YouTube"]
+    let titlePrefixes = ["Amazon.com"]
     let beta = 50.0
     var noteContentThreshold: Int
     let extractor = JusText()
+    var pagesWithContent = 0
 
     //Define which Laplacian to use
     var laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
@@ -287,24 +296,30 @@ public class Cluster {
         }
         let labels = [Int](0...numClusters - 1)
         var bestPredictedLabels: [Int]?
-        var bestLabelsScore: Int?
+        var bestLabelsScore: Double?
         var predictedLabels: [Int] = []
         let kmeans = KMeans(labels: labels)
-        for _ in 1...3 {
+        for _ in 1...30 {
             predictedLabels = []
+            var newLabelScore = 0.0
             kmeans.trainCenters(points, convergeDistance: 0.00001)
             for point in points {
-                predictedLabels.append(kmeans.fit(point))
+                let (label, distance) = kmeans.fit(point)
+                predictedLabels.append(label)
+                newLabelScore += pow(distance, 2.0)
             }
-            var newLabelScore = 0
-            for label in predictedLabels[0..<self.notes.count] {
-                let numPointsWithNote = predictedLabels.filter{ $0 == label }.count - 1
-                if numPointsWithNote > 0 {
-                    newLabelScore += predictedLabels.filter{ $0 == label }.count
-                } else {
-                    newLabelScore -= 5
-                }
-            }
+            newLabelScore *= Double(self.notes.count - Set(predictedLabels[0..<self.notes.count]).count)
+//            newLabelScore += pow(Double(Set(predictedLabels[0..<self.notes.count]).count - self.notes.count + 1), 3.0)
+//            for label in predictedLabels[0..<self.notes.count] {
+//                let numPagesWithNote = predictedLabels[self.notes.count..<predictedLabels.count].filter{ $0 == label }.count
+//                if numPagesWithNote > 0 {
+//                    newLabelScore += 2^(numPagesWithNote)
+//                }
+//                let numNotesWithNote = predictedLabels[0..<self.notes.count].filter{ $0 == label }.count - 1
+//                if numNotesWithNote > 0 {
+//                    newLabelScore += 4^(numNotesWithNote)
+//                }
+//            }
             if bestLabelsScore == nil || newLabelScore < (bestLabelsScore ?? 1000) {
                 bestLabelsScore = newLabelScore
                 bestPredictedLabels = predictedLabels
@@ -380,14 +395,14 @@ public class Cluster {
          for note in notes.enumerated() {
             if dataPointType == . note {
                 if !changeContent && note.offset == index { break }
-                scores.append(-0.5)
+                scores.append(-1.0)
             } else if let textualVectorID = note.element.textEmbedding,
                       let textLanguage = note.element.language,
                       let textualEmbedding = textualEmbedding,
                       textLanguage == language {
                 scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
             } else {
-                scores.append(-0.5)
+                scores.append(0.0)
             }
         }
 
@@ -396,7 +411,7 @@ public class Cluster {
             // then the score will be 0.0
             if page.offset == index && dataPointType == .page {
                 if changeContent {
-                    scores.append(-0.5)
+                    scores.append(0.0)
                 } else { break }
             } else if let textLanguage = page.element.language,
                       textLanguage == language {
@@ -436,7 +451,7 @@ public class Cluster {
                 } else if let entitiesInNote = note.element.entities {
                     scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInNote))
                 } else {
-                    scores.append(-0.5)
+                    scores.append(-1.0)
                 }
             }
             for page in pages.enumerated() {
@@ -483,19 +498,9 @@ public class Cluster {
         var language: NLLanguage?
         var scores = [Double](repeating: 0.0, count: self.textualSimilarityMatrix.matrix.rows)
         if dataPointType == .page {
-            scores = [Double](repeating: 0.0, count: max(self.notes.count, 0))
-            scores += [Double](repeating: 1.0, count: max(self.pages.count - 1, 0))
-            if changeContent {
-                scores.append(1.0)
-            }
             content = pages[index].cleanedContent
             language = pages[index].language
         } else {
-            scores = [Double](repeating: 0.0, count: max(self.notes.count - 1, 0))
-            scores += [Double](repeating: 1.0, count: max(self.pages.count, 0))
-            if changeContent {
-                scores.insert(0.0, at: 0)
-            }
             content = notes[index].content
             language = notes[index].language
         }
@@ -663,10 +668,11 @@ public class Cluster {
         case .combinationAllBinarisedMatrix:
             self.adjacencyMatrix = self.binarise(matrix: self.navigationMatrix.matrix, threshold: (self.weights[.navigation] ?? 0.5)) + self.binarise(matrix: self.textualSimilarityMatrix.matrix, threshold: (weights[.text] ?? 0.5)) + self.binarise(matrix: self.entitiesMatrix.matrix, threshold: (weights[.entities] ?? 0.5))
         case .combinationSigmoidWithTextErasure:
-            let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: self.weights[.navigation] ?? 0.5, beta: self.beta)
+//            let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: self.weights[.navigation] ?? 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: self.weights[.text] ?? 0.5, beta: self.beta)
             let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: self.weights[.entities] ?? 0.5, beta: self.beta)
-            self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
+//            self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
+            self .adjacencyMatrix = textSigmoidMatrix .* self.navigationMatrix.matrix + entitySigmoidMatrix
         case .fixedPagesTestNotes:
             let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.9, beta: self.beta)
@@ -682,9 +688,11 @@ public class Cluster {
         case .nothing:
             break
         case .fixed:
-            adjacencyForNotes = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols] + self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 1.2, beta: self.beta)
+            adjacencyForNotes = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols] + self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 1.0, beta: self.beta)
         case .combinationAfterSigmoid:
-            adjacencyForNotes = (self.weights[.text] ?? 0.5) .* self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols], middle: 1, beta: self.beta) + (self.weights[.entities] ?? 0.5) .* self.performSigmoidOn(matrix: self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: (self.weights[.navigation] ?? 0.5) * 2, beta: beta)
+            adjacencyForNotes = (self.weights[.text] ?? 0.5) .* self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols], middle: 1, beta: self.beta) + (self.weights[.entities] ?? 0.5) .* self.performSigmoidOn(matrix: self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 0.5, beta: beta)
+        case .sigmoidOnEntities:
+            adjacencyForNotes = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: 0.3, beta: beta)
         case .combinationBeforeSigmoid:
             adjacencyForNotes = self.performSigmoidOn(matrix: (self.weights[.text] ?? 0.5) .* self.textualSimilarityMatrix.matrix[0..<self.notes.count, 0..<self.textualSimilarityMatrix.matrix.cols] + (self.weights[.entities] ?? 0.5) .* self.entitiesMatrix.matrix[0..<self.notes.count, 0..<self.entitiesMatrix.matrix.cols], middle: (self.weights[.navigation] ?? 0.5) * 2, beta: self.beta)
         }
@@ -732,13 +740,19 @@ public class Cluster {
     /// - Returns: A preprocessed version of the title
     func titlePreprocessing(of title: String) -> String {
         var preprocessedTitle = title
+        for prefix in self.titlePrefixes {
+            if preprocessedTitle.hasPrefix(prefix) {
+                preprocessedTitle = String(preprocessedTitle.dropFirst(prefix.count))
+                break
+            }
+        }
         for suffix in self.titleSuffixes {
             if preprocessedTitle.hasSuffix(suffix) {
                 preprocessedTitle = String(preprocessedTitle.dropLast(suffix.count))
                 break
             }
         }
-        preprocessedTitle = preprocessedTitle.capitalized + " and some text"
+        preprocessedTitle = preprocessedTitle.capitalized.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespaces) + " and some text"
         return preprocessedTitle
     }
 
@@ -770,7 +784,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag), Error>) -> Void) {
         myQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
@@ -802,8 +816,10 @@ public class Cluster {
                     let totalContentTokenized = (newContent + " " + (self.pages[id_index].cleanedContent ?? "")).split(separator: " ")
                     if totalContentTokenized.count > 512 {
                         self.pages[id_index].cleanedContent = totalContentTokenized.dropLast(totalContentTokenized.count - 512).joined(separator: " ")
+                        self.pages[id_index].language = self.extractor.getTextLanguage(text: totalContentTokenized.dropLast(totalContentTokenized.count - 512).joined(separator: " "))
                     } else {
                         self.pages[id_index].cleanedContent = totalContentTokenized.joined(separator: " ")
+                        self.pages[id_index].language = self.extractor.getTextLanguage(text: totalContentTokenized.joined(separator: " "))
                     }
                     do {
                         try self.textualSimilarityProcess(index: id_index, dataPointType: dataPointType, changeContent: true)
@@ -873,6 +889,9 @@ public class Cluster {
                         self.pages[newIndex].originalContent = nil
                     } catch {
                     }
+                    if self.pages[newIndex].cleanedContent?.count ?? 0 > 10 {
+                        self.pagesWithContent += 1
+                    }
                 } else if let note = note {
                     newIndex = self.notes.count
                     self.notes.append(note)
@@ -904,10 +923,12 @@ public class Cluster {
             let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
 
             DispatchQueue.main.async {
-                if clusteringTime > self.timeToRemove {
-                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: true)))
+                if self.pagesWithContent == 3 {
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .addNotes)))
+                } else if clusteringTime > self.timeToRemove {
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .sendRanking)))
                 } else {
-                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: false)))
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none)))
                 }
             }
         }
@@ -978,7 +999,7 @@ public class Cluster {
         case 2:
             self.laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
             self.matrixCandidate = SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
-            self.noteMatrixCandidate = SimilarityForNotesCandidate.fixed
+            self.noteMatrixCandidate = SimilarityForNotesCandidate.sigmoidOnEntities
             self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
         case 3:
             self.laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
@@ -1003,7 +1024,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next large_tuple
-    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], sendRanking: Bool), Error>) -> Void) {
+    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag), Error>) -> Void) {
         myQueue.async {
             // If ranking is received, remove pages
             self.candidate = candidate ?? self.candidate
@@ -1027,7 +1048,7 @@ public class Cluster {
             let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
 
             DispatchQueue.main.async {
-                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, sendRanking: false)))
+                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none)))
             }
         }
     }
