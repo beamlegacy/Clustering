@@ -310,17 +310,6 @@ public class Cluster {
             }
             newLabelScore *= Double(1 + numClusters - Set(predictedLabels).count)
             newLabelScore *= Double(self.notes.count - Set(predictedLabels[0..<self.notes.count]).count)
-//            newLabelScore += pow(Double(Set(predictedLabels[0..<self.notes.count]).count - self.notes.count + 1), 3.0)
-//            for label in predictedLabels[0..<self.notes.count] {
-//                let numPagesWithNote = predictedLabels[self.notes.count..<predictedLabels.count].filter{ $0 == label }.count
-//                if numPagesWithNote > 0 {
-//                    newLabelScore += 2^(numPagesWithNote)
-//                }
-//                let numNotesWithNote = predictedLabels[0..<self.notes.count].filter{ $0 == label }.count - 1
-//                if numNotesWithNote > 0 {
-//                    newLabelScore += 4^(numNotesWithNote)
-//                }
-//            }
             if bestLabelsScore == nil || newLabelScore < (bestLabelsScore ?? 1000) {
                 bestLabelsScore = newLabelScore
                 bestPredictedLabels = predictedLabels
@@ -589,10 +578,6 @@ public class Cluster {
     ///   - entitiesInText1: The entities found in the first text
     /// - Returns: The similarity between the two data points, between 0 and 1
     func jaccardEntities(entitiesText1: EntitiesInText, entitiesText2: EntitiesInText) -> Double {
-//        var intersection: Set<String> = Set([String]())
-//        var union: Set<String> = Set([String]())
-//        var totalEntities1: Set<String> = Set([String]())
-//        var totalEntities2: Set<String> = Set([String]())
         var totalEntities1 = [String]()
         if entitiesText1.entities["PersonalName"]?.count ?? 0 > 0 {
             totalEntities1 += (entitiesText1.entities["PersonalName"] ?? [String]()).joined(separator: " ").components(separatedBy: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
@@ -607,15 +592,8 @@ public class Cluster {
                 totalEntities2 += (entitiesText2.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
         }
 
-//        for entityType in entitiesText1.entities.keys {
-//            union = Set(entitiesText1.entities[entityType] ?? [String]()).union(Set(entitiesText2.entities[entityType] ?? [String]())).union(union)
-//            intersection = Set(entitiesText1.entities[entityType] ?? [String]()).intersection(Set(entitiesText2.entities[entityType] ?? [String]())).union(intersection)
-//            totalEntities1 = Set(entitiesText1.entities[entityType] ?? [String]()).union(totalEntities1)
-//            totalEntities2 = Set(entitiesText2.entities[entityType] ?? [String]()).union(totalEntities2)
-//        }
         let minimumEntities = min(Set(totalEntities1).count, Set(totalEntities2).count)
         if minimumEntities > 0 {
-//            return Double(intersection.count) / Double(minimumEntities)
             return Double(Set(totalEntities1).intersection(Set(totalEntities2)).count) / Double(minimumEntities)
         } else {
             return 0
