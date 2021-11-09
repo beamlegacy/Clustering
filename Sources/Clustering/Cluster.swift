@@ -308,6 +308,7 @@ public class Cluster {
                 predictedLabels.append(label)
                 newLabelScore += pow(distance, 2.0)
             }
+            newLabelScore *= Double(1 + numClusters - Set(predictedLabels).count)
             newLabelScore *= Double(self.notes.count - Set(predictedLabels[0..<self.notes.count]).count)
 //            newLabelScore += pow(Double(Set(predictedLabels[0..<self.notes.count]).count - self.notes.count + 1), 3.0)
 //            for label in predictedLabels[0..<self.notes.count] {
@@ -451,7 +452,7 @@ public class Cluster {
                 } else if let entitiesInNote = note.element.entities {
                     scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInNote))
                 } else {
-                    scores.append(-1.0)
+                    scores.append(0.0)
                 }
             }
             for page in pages.enumerated() {
@@ -549,6 +550,7 @@ public class Cluster {
         if let content = content {
             let entitiesInNewText = self.findEntitiesInText(text: content)
             scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ $0.0 + $0.1 })
+            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1) })
             switch dataPointType {
             case .page:
                 pages[index].entities = entitiesInNewText
@@ -559,6 +561,7 @@ public class Cluster {
         if let title = title {
             let entitiesInNewTitle = findEntitiesInText(text: title)
             scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1.0) })
+            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1.0) })
             switch dataPointType {
             case .page:
                 pages[index].entitiesInTitle = entitiesInNewTitle
@@ -586,20 +589,34 @@ public class Cluster {
     ///   - entitiesInText1: The entities found in the first text
     /// - Returns: The similarity between the two data points, between 0 and 1
     func jaccardEntities(entitiesText1: EntitiesInText, entitiesText2: EntitiesInText) -> Double {
-        var intersection: Set<String> = Set([String]())
-        var union: Set<String> = Set([String]())
-        var totalEntities1: Set<String> = Set([String]())
-        var totalEntities2: Set<String> = Set([String]())
-
-        for entityType in entitiesText1.entities.keys {
-            union = Set(entitiesText1.entities[entityType] ?? [String]()).union(Set(entitiesText2.entities[entityType] ?? [String]())).union(union)
-            intersection = Set(entitiesText1.entities[entityType] ?? [String]()).intersection(Set(entitiesText2.entities[entityType] ?? [String]())).union(intersection)
-            totalEntities1 = Set(entitiesText1.entities[entityType] ?? [String]()).union(totalEntities1)
-            totalEntities2 = Set(entitiesText2.entities[entityType] ?? [String]()).union(totalEntities2)
+//        var intersection: Set<String> = Set([String]())
+//        var union: Set<String> = Set([String]())
+//        var totalEntities1: Set<String> = Set([String]())
+//        var totalEntities2: Set<String> = Set([String]())
+        var totalEntities1 = [String]()
+        if entitiesText1.entities["PersonalName"]?.count ?? 0 > 0 {
+            totalEntities1 += (entitiesText1.entities["PersonalName"] ?? [String]()).joined(separator: " ").components(separatedBy: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
         }
-        let minimumEntities = min(totalEntities1.count, totalEntities2.count)
+        var totalEntities2 = [String]()
+        if entitiesText2.entities["PersonalName"]?.count ?? 0 > 0 {
+            totalEntities2 += (entitiesText2.entities["PersonalName"] ?? [String]()).joined(separator: " ").components(separatedBy: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        }
+
+        for entityType in ["PlaceName", "OrganizationName"] {
+                totalEntities1 += (entitiesText1.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                totalEntities2 += (entitiesText2.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        }
+
+//        for entityType in entitiesText1.entities.keys {
+//            union = Set(entitiesText1.entities[entityType] ?? [String]()).union(Set(entitiesText2.entities[entityType] ?? [String]())).union(union)
+//            intersection = Set(entitiesText1.entities[entityType] ?? [String]()).intersection(Set(entitiesText2.entities[entityType] ?? [String]())).union(intersection)
+//            totalEntities1 = Set(entitiesText1.entities[entityType] ?? [String]()).union(totalEntities1)
+//            totalEntities2 = Set(entitiesText2.entities[entityType] ?? [String]()).union(totalEntities2)
+//        }
+        let minimumEntities = min(Set(totalEntities1).count, Set(totalEntities2).count)
         if minimumEntities > 0 {
-            return Double(intersection.count) / Double(minimumEntities)
+//            return Double(intersection.count) / Double(minimumEntities)
+            return Double(Set(totalEntities1).intersection(Set(totalEntities2)).count) / Double(minimumEntities)
         } else {
             return 0
         }
@@ -638,6 +655,25 @@ public class Cluster {
             for column in 0..<matrix.cols {
                 if matrix[row, column] > threshold {
                     result[row, column] = 1.0
+                }
+            }
+        }
+        return result
+    }
+
+    /// Threshold a matrix according to a threshold (over =  original value, under = 0).
+    /// This function is used in some of the adjacency matrix construction candidates
+    ///
+    /// - Parameters:
+    ///   - matrix: The matrix to be thresholded
+    ///   - threshold: The binarization threshold
+    /// - Returns: The thresholded version of the input matrix
+    func threshold(matrix: Matrix, threshold: Double) -> Matrix {
+        let result = matrix
+        for row in 0..<matrix.rows {
+            for column in 0..<matrix.cols {
+                if matrix[row, column] < threshold {
+                    result[row, column] = 0.0
                 }
             }
         }
@@ -701,6 +737,9 @@ public class Cluster {
             self.adjacencyMatrix[0..<self.notes.count, 0..<self.adjacencyMatrix.cols] = adjacencyForNotes
             self.adjacencyMatrix[0..<self.adjacencyMatrix.rows, 0..<self.notes.count] = adjacencyForNotes.T
         }
+
+        // Add threshold for very small values
+        self.adjacencyMatrix = self.threshold(matrix: self.adjacencyMatrix, threshold: 0.0001)
     }
 
     /// Remove pages (only) from the adjacency matrix but keep them by fixing them
