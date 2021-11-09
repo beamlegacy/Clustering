@@ -130,13 +130,13 @@ class ClusteringTests: XCTestCase {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
             } else if embedders.1 == nil {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.4, 0, 0, 0, 0.4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0, 0, 0, 0.6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 1, 1, 0, 0.9201, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
             } else if embedders.0 == nil {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0.9922, 1, 1, 1, 0.9922, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
             } else {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.4, 0.5, 0.4286, 0, 0.4, 0, 0.25, 0, 0, 0.5, 0.25, 0, 0.5, 0, 0.4286, 0, 0.5, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0.6, 0.6667, 0, 0.6, 0, 0.4, 0.6, 0, 0.6, 0.4, 0, 0.8, 0, 0.6667, 0.6, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 1, 1, 0, 0.9201, 0, 1, 1, 0, 1, 1, 0, 0.9922, 1, 1, 1, 0.9922, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
             }
         }
