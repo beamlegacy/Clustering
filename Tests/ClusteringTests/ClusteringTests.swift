@@ -416,5 +416,36 @@ class ClusteringTests: XCTestCase {
         expect(cluster.notes.count) == 1
         expect(cluster.notes[0].id) == longNote.id
     }
+    
+    func testCreateSimilarities() throws {
+        let cluster = Cluster()
+        cluster.textualSimilarityMatrix.matrix = Matrix([[0, 0, 0, 0.9, 0.8, 0.7],
+                                                         [0, 0, 0, 0.5, 0.5, 0.5],
+                                                         [0, 0, 0, 0.1, 0.2, 0.3],
+                                                         [0.9, 0.5, 0.1, 0, 0.5, 0.2],
+                                                         [0.8, 0.5, 0.2, 0.5, 0, 0.3],
+                                                         [0.7, 0.5, 0.3, 0.2, 0.3, 0]])
+        cluster.entitiesMatrix.matrix = Matrix([[0, 0, 0, 0.4, 0.3, 0.2],
+                                                [0, 0, 0, 0.5, 0.5, 0.5],
+                                                [0, 0, 0, 0.1, 0.2, 0.3],
+                                                [0.4, 0.5, 0.1, 0, 0.5, 0.2],
+                                                [0.3, 0.5, 0.2, 0.5, 0, 0.3],
+                                                [0.2, 0.5, 0.3, 0.2, 0.3, 0]])
+        cluster.notes = [ClusteringNote(id: UUID(), title: "First note", content: "note"),
+                         ClusteringNote(id: UUID(), title: "Second note", content: "note"),
+                         ClusteringNote(id: UUID(), title: "Third note", content: "note")]
+        cluster.pages = [Page(id: UUID(), parentId: nil, title: "First page", cleanedContent: "page"),
+                         Page(id: UUID(), parentId: nil, title: "Second page", cleanedContent: "page"),
+                         Page(id: UUID(), parentId: nil, title: "Third page", cleanedContent: "page")]
+        let activeSources = [cluster.pages[0].id]
+        let noteGroups = [[cluster.notes[0].id], [cluster.notes[1].id], [cluster.notes[2].id], [], []]
+        let pageGroups = [[], [cluster.pages[2].id], [], [cluster.pages[0].id, cluster.pages[1].id]]
+        
+        let mySimilarities = cluster.createSimilarities(pageGroups: pageGroups, noteGroups: noteGroups, activeSources: activeSources)
+        expect(mySimilarities[cluster.notes[0].id]) == [:]
+        expect(mySimilarities[cluster.notes[1].id]) == [cluster.pages[2].id: 0.5625]
+        expect(mySimilarities[cluster.notes[2].id]) == [:]
+        expect(mySimilarities[cluster.pages[0].id]) == [cluster.pages[1].id: 0.5625]
+    }
     // swiftlint:disable:next file_length
 }
