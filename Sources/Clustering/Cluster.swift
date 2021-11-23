@@ -538,8 +538,7 @@ public class Cluster {
         }
         if let content = content {
             let entitiesInNewText = self.findEntitiesInText(text: content)
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ $0.0 + $0.1 })
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1) })
+            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ max($0.0, $0.1) })
             switch dataPointType {
             case .page:
                 pages[index].entities = entitiesInNewText
@@ -549,8 +548,7 @@ public class Cluster {
         }
         if let title = title {
             let entitiesInNewTitle = findEntitiesInText(text: title)
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1.0) })
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ min($0.0 + $0.1, 1.0) })
+            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ max($0.0, $0.1) })
             switch dataPointType {
             case .page:
                 pages[index].entitiesInTitle = entitiesInNewTitle
@@ -783,6 +781,46 @@ public class Cluster {
             pages[page.offset].attachedPages = page.element.attachedPages.filter {$0 != newPageID}
         }
     }
+    
+    /// A function to calculate the similarities of notes and active sources with all sources that are in the same group,
+    /// for the purpose of using this in score calculation
+    ///
+    /// - Parameters:
+    ///   - pageGroups: array of array of all pages clustered into groups
+    ///   - noteGroups: array of array of all notes clustered into corresponding groups
+    ///   - activeSources: array of all active sources
+    /// - Returns: A dictionary of all notes and active sources (keys), the value for each is a dictionary of all pages
+    ///             in the same group (keys) and the corresponding similarity (value)
+    func createSimilarities(pageGroups: [[UUID]], noteGroups: [[UUID]], activeSources: [UUID]?) -> [UUID: [UUID: Double]] {
+        var similarities = [UUID: [UUID: Double]]()
+        // Start by including similarities with notes
+        for (pageGroup, noteGroup) in zip(pageGroups, noteGroups) {
+            for noteId in noteGroup {
+                if let noteIndex = self.findNoteInNotes(noteID: noteId) {
+                    similarities[noteId] = [UUID: Double]()
+                    for pageId in pageGroup {
+                        if let pageIndex = self.findPageInPages(pageID: pageId) {
+                            similarities[noteId]?[pageId] = self.entitiesMatrix.matrix[noteIndex, pageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[noteIndex, pageIndex + self.notes.count], 4.0)
+                        }
+                    }
+                }
+            }
+            if let activeSources = activeSources {
+                for pageId in pageGroup {
+                    if activeSources.contains(pageId),
+                       let pageIndex = self.findPageInPages(pageID: pageId) {
+                        similarities[pageId] = [UUID:Double]()
+                        for suggestedPageId in pageGroup.filter({ $0 != pageId }) {
+                            if let suggestedPageIndex = self.findPageInPages(pageID: suggestedPageId) {
+                                similarities[pageId]?[suggestedPageId] = self.entitiesMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count], 4.0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return similarities
+    }
 
     /// The main function to access the package, adding a data point (page or note)
     /// to the clustering process. The function makes sure that a request to add a data point
@@ -801,7 +839,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag), Error>) -> Void) {
+    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, activeSources: [UUID]? = nil, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
         myQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
@@ -938,14 +976,15 @@ public class Cluster {
             let clusteringTime = CFAbsoluteTimeGetCurrent() - start
             let stablizedClusters = self.stabilize(predictedClusters)
             let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+            let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
 
             DispatchQueue.main.async {
                 if self.pagesWithContent == 3 {
-                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .addNotes)))
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .addNotes, similarities: similarities)))
                 } else if clusteringTime > self.timeToRemove {
-                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .sendRanking)))
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .sendRanking, similarities: similarities)))
                 } else {
-                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none)))
+                    completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
                 }
             }
         }
@@ -1041,7 +1080,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next large_tuple
-    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag), Error>) -> Void) {
+    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, activeSources: [UUID]? = nil, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
         myQueue.async {
             // If ranking is received, remove pages
             self.candidate = candidate ?? self.candidate
@@ -1063,9 +1102,10 @@ public class Cluster {
             }
             let stablizedClusters = self.stabilize(predictedClusters)
             let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+            let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
 
             DispatchQueue.main.async {
-                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none)))
+                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
             }
         }
     }
