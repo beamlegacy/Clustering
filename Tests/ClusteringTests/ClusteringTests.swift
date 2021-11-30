@@ -128,16 +128,16 @@ class ClusteringTests: XCTestCase {
             let embedders = (NLEmbedding.sentenceEmbedding(for: NLLanguage.english), NLEmbedding.sentenceEmbedding(for: NLLanguage.french))
             if embedders == (nil, nil) {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
-                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else if embedders.1 == nil {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0, 0, 0, 0.6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
-                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 1, 1, 0, 0.9201, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 0, 0, 0, 0.9201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else if embedders.0 == nil {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
-                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0.9922, 1, 1, 1, 0.9922, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0.6, 0.6667, 0, 0.6, 0, 0.4, 0.6, 0, 0.6, 0.4, 0, 0.8, 0, 0.6667, 0.6, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
-                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 1, 1, 0, 0.9201, 0, 1, 1, 0, 1, 1, 0, 0.9922, 1, 1, 1, 0.9922, 0, 1, 0, 0, 1, 1, 0], within: 0.0001))
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 0, 0, 0, 0.9201, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             }
         }
     }
@@ -266,7 +266,7 @@ class ClusteringTests: XCTestCase {
             })
             if page.offset == 4 {
                 let myUUID = UUID()
-                let myNote = ClusteringNote(id: myUUID, title: "Roger Federer", content: "Roger Federer is the best Tennis player in history")
+                let myNote = ClusteringNote(id: myUUID, title: "Roger Federer", content: ["Roger Federer is the best Tennis player in history"])
                 cluster.add(note: myNote, ranking: nil, completion: { result in
                     switch result {
                     case .failure(let error):
@@ -361,7 +361,7 @@ class ClusteringTests: XCTestCase {
             })
         }
         for i in 0...2 {
-            let myNote = ClusteringNote(id: UUID(), title: "My note", content: "This is my note")
+            let myNote = ClusteringNote(id: UUID(), title: "My note", content: ["This is my note"])
             cluster.add(note: myNote, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
@@ -392,9 +392,9 @@ class ClusteringTests: XCTestCase {
     /// Trying to add a note with little content should throw an expected error and not add the note
     func testNoteWithLittleContentIsNotAdded() throws {
         let cluster = Cluster()
-        let firstShortNote = ClusteringNote(id: UUID(), title: "First short note", content: "This is a short note")
-        let longNote = ClusteringNote(id: UUID(), title: "Roger Federer", content: "Roger Federer (German: [ˈrɔdʒər ˈfeːdərər]; born 8 August 1981) is a Swiss professional tennis player. He is ranked No. 9 in the world by the Association of Tennis Professionals (ATP). He has won 20 Grand Slam men's singles titles, an all-time record shared with Rafael Nadal and Novak Djokovic. Federer has been world No. 1 in the ATP rankings a total of 310 weeks – including a record 237 consecutive weeks – and has finished as the year-end No. 1 five times. Federer has won 103 ATP singles titles, the second most of all-time behind Jimmy Connors, including a record six ATP Finals. Federer has played in an era where he dominated men's tennis together with Rafael Nadal and Novak Djokovic, who have been collectively referred to as the Big Three and are widely considered three of the greatest tennis players of all-time.[c] A Wimbledon junior champion in 1998, Federer won his first Grand Slam singles title at Wimbledon in 2003 at age 21. In 2004, he won three out of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, Federer made 18 out of 19 major singles finals. During this span, he won his fifth consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-ups to Nadal, his main rival up until 2010. At age 27, he also surpassed Pete Sampras's then-record of 14 Grand Slam men's singles titles at Wimbledon in 2009.")
-        let secondShortNote = ClusteringNote(id: UUID(), title: "Second short note", content: "This is a short note")
+        let firstShortNote = ClusteringNote(id: UUID(), title: "First short note", content: ["This is a short note"])
+        let longNote = ClusteringNote(id: UUID(), title: "Roger Federer", content: ["Roger Federer (German: [ˈrɔdʒər ˈfeːdərər]; born 8 August 1981) is a Swiss professional tennis player. He is ranked No. 9 in the world by the Association of Tennis Professionals (ATP). He has won 20 Grand Slam men's singles titles, an all-time record shared with Rafael Nadal and Novak Djokovic. Federer has been world No. 1 in the ATP rankings a total of 310 weeks – including a record 237 consecutive weeks – and has finished as the year-end No. 1 five times. Federer has won 103 ATP singles titles, the second most of all-time behind Jimmy Connors, including a record six ATP Finals. Federer has played in an era where he dominated men's tennis together with Rafael Nadal and Novak Djokovic, who have been collectively referred to as the Big Three and are widely considered three of the greatest tennis players of all-time.[c] A Wimbledon junior champion in 1998, Federer won his first Grand Slam singles title at Wimbledon in 2003 at age 21. In 2004, he won three out of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, Federer made 18 out of 19 major singles finals. During this span, he won his fifth consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-ups to Nadal, his main rival up until 2010. At age 27, he also surpassed Pete Sampras's then-record of 14 Grand Slam men's singles titles at Wimbledon in 2009."])
+        let secondShortNote = ClusteringNote(id: UUID(), title: "Second short note", content: ["This is a short note"])
         let myNotes = [firstShortNote, longNote, secondShortNote]
         let expectation = self.expectation(description: "Add note expectation")
         for aNote in myNotes.enumerated() {
@@ -431,9 +431,9 @@ class ClusteringTests: XCTestCase {
                                                 [0.4, 0.5, 0.1, 0, 0.5, 0.2],
                                                 [0.3, 0.5, 0.2, 0.5, 0, 0.3],
                                                 [0.2, 0.5, 0.3, 0.2, 0.3, 0]])
-        cluster.notes = [ClusteringNote(id: UUID(), title: "First note", content: "note"),
-                         ClusteringNote(id: UUID(), title: "Second note", content: "note"),
-                         ClusteringNote(id: UUID(), title: "Third note", content: "note")]
+        cluster.notes = [ClusteringNote(id: UUID(), title: "First note", content: ["note"]),
+                         ClusteringNote(id: UUID(), title: "Second note", content: ["note"]),
+                         ClusteringNote(id: UUID(), title: "Third note", content: ["note"])]
         cluster.pages = [Page(id: UUID(), parentId: nil, title: "First page", cleanedContent: "page"),
                          Page(id: UUID(), parentId: nil, title: "Second page", cleanedContent: "page"),
                          Page(id: UUID(), parentId: nil, title: "Third page", cleanedContent: "page")]

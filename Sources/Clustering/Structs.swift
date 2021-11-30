@@ -27,15 +27,16 @@ public struct Page {
 }
 
 public struct ClusteringNote {
-    public init(id: UUID, title: String? = nil, content: String? = nil) {
+    public init(id: UUID, title: String? = nil, content: [String]? = nil) {
         self.id = id
         self.title = title
-        self.content = content
+        self.originalContent = content
     }
     var id: UUID
     var title: String?
-    var content: String?  // Text in the note.
+    var originalContent: [String]?  // Text in the note.
                           // TODO: Should we save to source (copy-paste from a page, user input...)
+    var cleanedContent: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
     var language: NLLanguage?
