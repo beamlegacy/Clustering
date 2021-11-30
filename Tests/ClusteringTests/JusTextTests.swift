@@ -40,23 +40,23 @@ class JustTextTests: XCTestCase {
 
     /// Test that block stopword densities are rated correctly
     func testRateStopwordDensity() throws {
-        let rates = jusText.rateStopwordDensity(of: testBlocks, language: NLLanguage.english)
-        expect(rates?.count) == testBlocks.count
-        expect(rates?[0]) == JusText.Rates.low
-        expect(rates?[3]) == JusText.Rates.high
-        expect(rates?[17]) == JusText.Rates.medium
+        let rates = jusText.rateStopwordDensity(of: testBlocks, with: Array(repeating: NLLanguage.english, count: testBlocks.count))
+        expect(rates.count) == testBlocks.count
+        expect(rates[0]) == JusText.Rates.low
+        expect(rates[3]) == JusText.Rates.high
+        expect(rates[17]) == JusText.Rates.medium
     }
 
     /// Test that when no stopwords are available, no rates are returned for stopword density
     func testRateStopwordDensityUndeterminedLanguage () throws {
-        let rates = jusText.rateStopwordDensity(of: testBlocks, language: NLLanguage.undetermined)
-        expect(rates) == nil
+        let rates = jusText.rateStopwordDensity(of: testBlocks, with: Array(repeating: NLLanguage.undetermined, count: testBlocks.count))
+        expect(rates) == Array(repeating: JusText.Rates.undefined, count: testBlocks.count)
     }
 
     /// Test that block classification is done correctly (individually and final classification)
     func testDetermineBlocks() throws {
         let lengthRates = jusText.rateLength(of: testBlocks)
-        let stopwordRates = jusText.rateStopwordDensity(of: testBlocks, language: NLLanguage.english)
+        let stopwordRates = jusText.rateStopwordDensity(of: testBlocks, with: Array(repeating: NLLanguage.english, count: testBlocks.count))
         let initialBlockClasses = try jusText.determinePerBlock(blockLengths: lengthRates, blockStopWords: stopwordRates)
         expect(initialBlockClasses.count) == self.testBlocks.count
         expect(initialBlockClasses[0]) == JusText.BlockClasses.short

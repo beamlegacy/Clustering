@@ -96,7 +96,7 @@ public class Cluster {
     let entityOptions: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
     let entityTags: [NLTag] = [.personalName, .placeName, .organizationName]
     var timeToRemove: Double = 3 // If clustering takes more than this (in seconds) we start removing pages
-    let titleSuffixes = [" - Google Search", " - YouTube"]
+    let titleSuffixes = [" - Google Search", " - YouTube", "| Ebay", "| eBay"]
     let titlePrefixes = ["Amazon.com"]
     let beta = 50.0
     var noteContentThreshold: Int
@@ -412,7 +412,8 @@ public class Cluster {
                     scores.append(0.0)
                 }
             } else if dataPointType == .page {
-                scores.append(1.0) // We don't want to "break" connections between langauges
+                scores.append(0.0)
+//                scores.append(1.0) // We don't want to "break" connections between langauges
             } else {
                 scores.append(0.0)
             }
@@ -491,7 +492,7 @@ public class Cluster {
             content = pages[index].cleanedContent
             language = pages[index].language
         } else {
-            content = notes[index].content
+            content = notes[index].cleanedContent
             language = notes[index].language
         }
         if let content = content,
@@ -533,7 +534,7 @@ public class Cluster {
             content = self.pages[index].cleanedContent
             title = self.pages[index].title
         case .note:
-            content = self.notes[index].content
+            content = self.notes[index].cleanedContent
             title = self.notes[index].title
         }
         if let content = content {
@@ -893,9 +894,8 @@ public class Cluster {
             } else if let note = note,
                       let id_index = self.findNoteInNotes(noteID: note.id) {
                 do {
-                    if let newContent = note.content {
-                        self.notes[id_index].content = newContent
-                        self.notes[id_index].language = self.extractor.getTextLanguage(text: self.notes[id_index].content ?? "")
+                    if let newContent = note.originalContent {
+                        (self.notes[id_index].cleanedContent, self.notes[id_index].language) = try self.extractor.extract(from: newContent, for: .note)
                     }
                     if let newTitle = note.title {
                         self.notes[id_index].title = self.titlePreprocessing(of: newTitle)
@@ -914,8 +914,8 @@ public class Cluster {
                 }
                 // If new note without enogh text, abort
                 if let note = note {
-                    guard let content = note.content,
-                          content.split(separator: " ").count > self.noteContentThreshold else {
+                    guard let content = note.originalContent,
+                          content.map({ $0.split(separator: " ").count }).reduce(0, +) > self.noteContentThreshold else {
                               completion(.failure(AdditionError.notEnoughTextInNote))
                               return
                           }
@@ -953,7 +953,11 @@ public class Cluster {
                     if let title = self.notes[newIndex].title {
                         self.notes[newIndex].title = self.titlePreprocessing(of: title)
                     }
-                    self.notes[newIndex].language = self.extractor.getTextLanguage(text: self.notes[newIndex].content ?? "")
+                    do {
+                        (self.notes[newIndex].cleanedContent, self.notes[newIndex].language) = try self.extractor.extract(from: self.notes[newIndex].originalContent ?? [""], for: .note)
+                        self.notes[newIndex].originalContent = nil
+                    } catch {
+                    }
                 }
                 // Handle Text similarity and entities
                 do {

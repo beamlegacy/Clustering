@@ -10,6 +10,7 @@ class JusText {
         case low
         case medium
         case high
+        case undefined
     }
 
     enum BlockClasses {
@@ -21,6 +22,7 @@ class JusText {
 
     enum BlockClassesError: Error {
         case sizeMismatch
+        case blockLengthUndefined
     }
 
     let lengthLow = 70 // in characters
@@ -75,10 +77,10 @@ class JusText {
     /// - Parameters:
     ///   - blocks: Blocks of text extracted from HTML
     /// - Returns: A rate of the length of each block
-    func rateStopwordDensity(of blocks: [String], language: NLLanguage?) -> [Rates]? {
-        if let language = language,
-           let stopWordsInLanguage = self.stopWords[language] {
-            return blocks.map { block in
+    func rateStopwordDensity(of blocks: [String], with languages: [NLLanguage?]) -> [Rates] {
+        return zip(blocks, languages).map { (block, language) in
+            if let language = language,
+               let stopWordsInLanguage = self.stopWords[language] {
                 let splitted = Array(block.trimmingCharacters(in: .punctuationCharacters).split(separator: " "))
                 let totalWords = Double(splitted.count)
                 let numStopWords = Double(splitted.filter({ stopWordsInLanguage.contains(String($0.lowercased())) }).count)
@@ -90,9 +92,9 @@ class JusText {
                 default:
                     return Rates.high
                 }
+            } else {
+                return Rates.undefined
             }
-        } else {
-            return nil
         }
     }
 
@@ -102,28 +104,26 @@ class JusText {
     ///   - blockLengths: A rate of the length of each block
     ///   - blockStopWords: A rate of the stopword density for each blcok of text (optional, depending on the language)
     /// - Returns: A classification for each block of text
-    func determinePerBlock(blockLengths: [Rates], blockStopWords: [Rates]?) throws -> [BlockClasses] {
-        // Start with the case where there are no stop words for the language
-        guard let blockStopWords = blockStopWords else {
-            return blockLengths.map({ block in
-                switch block {
-                case .low:
-                    return BlockClasses.bad
-                case .medium:
-                    return BlockClasses.nearGood
-                case .high:
-                    return BlockClasses.good
-                }
-            })
-        }
+    func determinePerBlock(blockLengths: [Rates], blockStopWords: [Rates]) throws -> [BlockClasses] {
         // Make sure that both sets of rates are of the same size
         guard blockLengths.count == blockStopWords.count else {
             throw BlockClassesError.sizeMismatch
         }
-        // Continue with the more interesting case when there are stop words
         var blockClasses: [BlockClasses] = []
         for (blockLength, blockStopWords) in zip(blockLengths, blockStopWords) {
-            if blockLength == .low {
+            if blockStopWords == .undefined {
+                switch blockLength {
+                case .low:
+                    blockClasses.append(.bad)
+                case .medium:
+                    blockClasses.append(.nearGood)
+                case .high:
+                    blockClasses.append(.good)
+                default:
+                    throw BlockClassesError.blockLengthUndefined
+                    
+                }
+            } else if blockLength == .low {
                 blockClasses.append(.short)
             } else {
                 switch blockStopWords {
@@ -137,6 +137,8 @@ class JusText {
                     } else {
                         blockClasses.append(.good)
                     }
+                default:
+                    blockClasses.append(.bad) // This cannot happen since we're inside an else about blockStopWords
                 }
             }
         }
@@ -186,26 +188,52 @@ class JusText {
     /// - Parameters:
     ///   - blocks: Blocks of text extracted from HTML
     /// - Returns: A string to represent the page (can be empty) and the language of the page (if detected)
-    public func extract(from blocks: [String]) throws -> (String, NLLanguage?) {
-        let language = self.getTextLanguage(text: blocks.joined(separator: " "))
+    public func extract(from blocks: [String], for dataPoint: Cluster.DataPoint = .page) throws -> (String, NLLanguage?) {
+        let languageEachBlock = blocks.map({ self.getTextLanguage(text: $0) })
         let lengths = self.rateLength(of: blocks)
-        let stopwords = self.rateStopwordDensity(of: blocks, language: language)
+        let stopwords = self.rateStopwordDensity(of: blocks, with: languageEachBlock)
         let temporaryRates = try self.determinePerBlock(blockLengths: lengths, blockStopWords: stopwords)
 //        let finalRates = self.determineAllBlocks(blockClasses: temporaryRates)
 //        guard finalRates.count == blocks.count else {
 //            throw BlockClassesError.sizeMismatch
 //        }
 
-        var finalString = ""
-        for (block, rate) in zip(blocks, temporaryRates) {
-//        for (block, rate) in zip(blocks, finalRates) {
-            if rate == .good {
-                finalString += " " + block
+        // Check if there's a "good" rating with a known language
+        let blocksWithGoodRating = Set(temporaryRates.enumerated().map { rate -> Int in
+            if rate.element == .good {
+                return rate.offset
+            } else {
+                return temporaryRates.count
             }
-            if finalString.split(separator: " ").count > 512 {
+        }).filter { $0 != temporaryRates.count }
+        let blocksWithLangauge = Set(languageEachBlock.enumerated().map { language -> Int in
+            if let languageElement = language.element,
+               self.stopWords.keys.contains(languageElement) {
+                return language.offset
+            } else {
+                return languageEachBlock.count
+            }
+        }).filter { $0 != languageEachBlock.count }
+        var perfectBlocks = blocksWithLangauge.intersection(blocksWithGoodRating)
+        if perfectBlocks.count == 0 {
+           perfectBlocks = blocksWithGoodRating
+        }
+        let sortedIndeces = Array(perfectBlocks.sorted { $0 < $1 })
+        var finalLanguage = NLLanguage.undetermined
+        if sortedIndeces.count > 0,
+           languageEachBlock.count > sortedIndeces[0] {
+            finalLanguage = languageEachBlock[sortedIndeces[0]] ?? NLLanguage.undetermined
+        }
+        // TODO: Take care of the case where acceptable text appears in more than one language
+        var finalString = ""
+        for perfectBlockIndex in sortedIndeces {
+            if languageEachBlock[perfectBlockIndex] == nil || languageEachBlock[perfectBlockIndex] == finalLanguage {
+                finalString += " " + blocks[perfectBlockIndex]
+            }
+            if finalString.split(separator: " ").count > 512 && dataPoint == .page {
                 break
             }
         }
-        return (finalString.trimmingCharacters(in: .whitespacesAndNewlines), language)
+        return (finalString.trimmingCharacters(in: .whitespacesAndNewlines), finalLanguage)
     }
 }
