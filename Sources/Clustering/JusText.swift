@@ -188,7 +188,7 @@ class JusText {
     /// - Parameters:
     ///   - blocks: Blocks of text extracted from HTML
     /// - Returns: A string to represent the page (can be empty) and the language of the page (if detected)
-    public func extract(from blocks: [String], for dataPoint: Cluster.DataPoint = .page) throws -> (String, NLLanguage?) {
+    public func extract(from blocks: [String], forType dataPoint: Cluster.DataPoint = .page) throws -> (String, NLLanguage?) {
         let languageEachBlock = blocks.map({ self.getTextLanguage(text: $0) })
         let lengths = self.rateLength(of: blocks)
         let stopwords = self.rateStopwordDensity(of: blocks, with: languageEachBlock)

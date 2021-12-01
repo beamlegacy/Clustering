@@ -895,7 +895,7 @@ public class Cluster {
                       let id_index = self.findNoteInNotes(noteID: note.id) {
                 do {
                     if let newContent = note.originalContent {
-                        (self.notes[id_index].cleanedContent, self.notes[id_index].language) = try self.extractor.extract(from: newContent, for: .note)
+                        (self.notes[id_index].cleanedContent, self.notes[id_index].language) = try self.extractor.extract(from: newContent, forType: .note)
                     }
                     if let newTitle = note.title {
                         self.notes[id_index].title = self.titlePreprocessing(of: newTitle)
@@ -954,7 +954,7 @@ public class Cluster {
                         self.notes[newIndex].title = self.titlePreprocessing(of: title)
                     }
                     do {
-                        (self.notes[newIndex].cleanedContent, self.notes[newIndex].language) = try self.extractor.extract(from: self.notes[newIndex].originalContent ?? [""], for: .note)
+                        (self.notes[newIndex].cleanedContent, self.notes[newIndex].language) = try self.extractor.extract(from: self.notes[newIndex].originalContent ?? [""], forType: .note)
                         self.notes[newIndex].originalContent = nil
                     } catch {
                     }
