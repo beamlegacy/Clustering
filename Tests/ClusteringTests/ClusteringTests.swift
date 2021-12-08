@@ -417,6 +417,7 @@ class ClusteringTests: XCTestCase {
         expect(cluster.notes[0].id) == longNote.id
     }
     
+    /// Test that similarities between notes/active-sources to suggestions are returned correctly, for the sake of correct scoring of suggestions
     func testCreateSimilarities() throws {
         let cluster = Cluster()
         cluster.textualSimilarityMatrix.matrix = Matrix([[0, 0, 0, 0.9, 0.8, 0.7],
@@ -446,6 +447,37 @@ class ClusteringTests: XCTestCase {
         expect(mySimilarities[cluster.notes[1].id]) == [cluster.pages[2].id: 0.5625]
         expect(mySimilarities[cluster.notes[2].id]) == [:]
         expect(mySimilarities[cluster.pages[0].id]) == [cluster.pages[1].id: 0.5625]
+    }
+    
+    /// Test for the getSubmatrix method
+    func testGetSubMatrix() throws {
+        let cluster = Cluster()
+        let myMatrix = Matrix([[0, 1, 2, 3],
+                              [4, 5, 6, 7],
+                              [8, 9, 10, 11],
+                              [12, 13, 14, 15]])
+        expect(try cluster.getSubmatrix(of: myMatrix, withIndeces:[0, 2]).flat) == [0.0, 2.0, 8.0, 10.0]
+    }
+    
+    /// Test that two notes alone in a subgroup are separated correctly
+    func testSeparateTwoNotesOnly() throws {
+        let cluster = Cluster()
+        let adjacencyOnlyNotes = Matrix([[0, -1],
+                                        [-1, 0]])
+        let result = try cluster.spectralClustering(on: adjacencyOnlyNotes, numGroups: 2, numNotes: 2)
+        expect(Set(result)) == Set([0, 1])
+    }
+    
+    /// Test that two notes in a group with pages are separated correctly
+    func testSeparateNotesWithPages() throws {
+        let cluster = Cluster()
+        let adjacencySubgroup = Matrix([[0, -1, 0.5, 0.5],
+                                        [-1, 0, 1, 0],
+                                        [0.5, 1, 0, 0.2],
+                                        [0.5, 0, 0.2, 0]])
+        let result = try cluster.spectralClustering(on: adjacencySubgroup, numGroups: 2, numNotes: 2)
+        expect(Set(result)) == Set([0, 1])
+        expect(result[0]) != result[1]
     }
     // swiftlint:disable:next file_length
 }
