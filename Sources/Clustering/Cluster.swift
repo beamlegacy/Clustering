@@ -230,23 +230,48 @@ public class Cluster {
          }
      }
 
+    ///  Extract a submatrix from a matrix corresponding to a list of indeces to include,
+    ///  both rows and columns
+    ///
+    /// - Parameters:
+    ///   - matrix: The original matrix
+    ///   - withIndeces: The indeces to include in the new matrix
+    /// - Returns: The nre matrix, containing only the desired indeces
+    func getSubmatrix(of matrix: Matrix, withIndeces: [Int]) throws -> Matrix {
+        guard matrix.rows == matrix.cols else {
+            throw MatrixError.dimensionsNotMatching
+        }
+        guard let max = withIndeces.max(), max < matrix.rows else {
+            throw MatrixError.pageOutOfDimensions
+        }
+        return matrix ?? (.Pos(withIndeces), .Pos(withIndeces))
+    }
+    
     /// Perform spectral clustering over a given adjacency matrix
     ///
     /// - Returns: An array of integers, corresponding to a grouping of all data points. The number given to each group is meaningless, only the grouping itself is meaningful
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    func spectralClustering() throws -> [Int] {
-        guard self.adjacencyMatrix.rows >= 2 else {
-            return zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
+    func spectralClustering(on matrix: Matrix? = nil, numGroups: Int? = nil, numNotes: Int? = nil, howDeep: Int = 0) throws -> [Int] {
+        var matrixToCluster = self.adjacencyMatrix
+        if let matrix = matrix {
+            matrixToCluster = matrix
+        }
+        let numNotes = numNotes ?? self.notes.count
+        guard matrixToCluster.rows >= 2 else {
+            return zeros(1, matrixToCluster.rows).flat.map { Int($0) }
+        }
+        guard howDeep < 4 else {
+            return [Int](repeating: 0, count: matrixToCluster.rows)
         }
 
-        let d = reduce(self.adjacencyMatrix, sum, .Row)
+        let d = reduce(matrixToCluster, sum, .Row)
         let d1: [Double] = d.map { elem in
             if elem < 1e-5 { return elem } else { return 1 / elem }
         }
         let D = diag(d)
         let D1 = diag(d1)
         // This naming makes sense as D1 is 1/D
-        let laplacianNn = D - self.adjacencyMatrix
+        let laplacianNn = D - matrixToCluster
         // This is the 'simplest' non-normalized Laplacian
 
         var laplacian: Matrix
@@ -269,23 +294,27 @@ public class Cluster {
         var eigenVcts = eigen.V ?? (.All, .Pos(permutation))
 
         var numClusters: Int
-        switch self.numClustersCandidate { // This switch takes care of the number of total classes
-        case .threshold: // Threshold
-            eigenVals.removeAll(where: { $0 > 1e-5 })
-            numClusters = eigenVals.count
-        case .biggestDistanceInPercentages: // Biggest distance in percentages
-            let eigenValsDifference = zip(eigenVals, eigenVals.dropFirst()).map { abs(($1 - $0) / max($0, 0.0001)) }
-            let maxDifference = eigenValsDifference.max() ?? 0
-            numClusters = (eigenValsDifference.firstIndex(of: maxDifference) ?? 0) + 1
-        case .biggestDistanceInAbsolute: // Biggest distance, absolute
-            var eigenValsDifference = zip(eigenVals, eigenVals.dropFirst()).map { abs(($1 - $0)) }
-            eigenValsDifference = eigenValsDifference.map { ($0 * 100).rounded() / 100 }
-            let maxDifference = eigenValsDifference.max() ?? 0
-            numClusters = (eigenValsDifference.firstIndex(of: maxDifference) ?? 0) + 1
+        if let numGroups = numGroups {
+            numClusters = numGroups
+        } else {
+            switch self.numClustersCandidate { // This switch takes care of the number of total classes
+            case .threshold: // Threshold
+                eigenVals.removeAll(where: { $0 > 1e-5 })
+                numClusters = eigenVals.count
+            case .biggestDistanceInPercentages: // Biggest distance in percentages
+                let eigenValsDifference = zip(eigenVals, eigenVals.dropFirst()).map { abs(($1 - $0) / max($0, 0.0001)) }
+                let maxDifference = eigenValsDifference.max() ?? 0
+                numClusters = (eigenValsDifference.firstIndex(of: maxDifference) ?? 0) + 1
+            case .biggestDistanceInAbsolute: // Biggest distance, absolute
+                var eigenValsDifference = zip(eigenVals, eigenVals.dropFirst()).map { abs(($1 - $0)) }
+                eigenValsDifference = eigenValsDifference.map { ($0 * 100).rounded() / 100 }
+                let maxDifference = eigenValsDifference.max() ?? 0
+                numClusters = (eigenValsDifference.firstIndex(of: maxDifference) ?? 0) + 1
+            }
         }
 
         guard numClusters > 1 else {
-            return zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
+            return zeros(1, matrixToCluster.rows).flat.map { Int($0) }
         }
         if eigenVcts.cols > numClusters {
             eigenVcts = eigenVcts ?? (.All, .Take(numClusters))
@@ -295,11 +324,11 @@ public class Cluster {
             points.append(Vector(eigenVcts[row: row]))
         }
         let labels = [Int](0...numClusters - 1)
-        var bestPredictedLabels: [Int]?
+        var bestPredictedLabels: [Int] = []
         var bestLabelsScore: Double?
         var predictedLabels: [Int] = []
         let kmeans = KMeans(labels: labels)
-        for _ in 1...30 {
+        for _ in 1...15 {
             predictedLabels = []
             var newLabelScore = 0.0
             kmeans.trainCenters(points, convergeDistance: 0.00001)
@@ -309,17 +338,33 @@ public class Cluster {
                 newLabelScore += pow(distance, 2.0)
             }
             newLabelScore *= Double(1 + numClusters - Set(predictedLabels).count)
-            newLabelScore *= Double(self.notes.count - Set(predictedLabels[0..<self.notes.count]).count)
+            newLabelScore *= Double(self.notes.count - Set(predictedLabels[0..<numNotes]).count)
             if bestLabelsScore == nil || newLabelScore < (bestLabelsScore ?? 1000) {
                 bestLabelsScore = newLabelScore
                 bestPredictedLabels = predictedLabels
             }
         }
-        if let bestPredictedLabels = bestPredictedLabels {
-            return bestPredictedLabels
-        } else {
-            return predictedLabels
+        let predictedLabelsForNotes = Set(bestPredictedLabels[0..<numNotes])
+        if predictedLabelsForNotes.count < numNotes {
+            for label in predictedLabelsForNotes {
+                let indeces = bestPredictedLabels.indices.filter {bestPredictedLabels[$0] == label}
+                let newNumNotes = indeces.firstIndex(where: { $0 >= numNotes }) ?? indeces.count
+                if newNumNotes > 1 && newNumNotes < indeces.count {
+                    var newGroups = try self.spectralClustering(on: getSubmatrix(of: matrixToCluster, withIndeces: indeces), numGroups: 2 , numNotes: newNumNotes, howDeep: howDeep + 1)
+                    if let max = bestPredictedLabels.max() {
+                        newGroups = newGroups.map { $0 + max + 1 }
+                    }
+                    bestPredictedLabels = bestPredictedLabels.enumerated().map { label in
+                        if indeces.contains(label.offset) {
+                            return newGroups[indeces.firstIndex(of: label.offset)!]
+                        } else {
+                            return label.element
+                        }
+                    }
+                }
+            }
         }
+        return bestPredictedLabels
     }
 
     ///  Compute the embedding of the given piece of text if the language of the text is detectable
