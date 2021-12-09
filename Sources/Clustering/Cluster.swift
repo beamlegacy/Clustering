@@ -770,18 +770,18 @@ public class Cluster {
     /// - Parameters:
     ///   - ranking: A list of all pages, ranked in the order of their score (from
     ///             the lowest to the highest)
-    func remove(ranking: [UUID]) throws {
+    func remove(ranking: [UUID], activeSources: [UUID]? = nil) throws {
         var ranking = ranking
         var pagesRemoved = 0
+        if let activeSources = activeSources {
+            let rankingWithoutActive = ranking.filter { !activeSources.contains($0) }
+            if rankingWithoutActive.count > 2 {
+                ranking = rankingWithoutActive
+            }
+        }
         while pagesRemoved < 3 {
             if let pageToRemove = ranking.first {
                 if let pageIndexToRemove = self.findPageInPages(pageID: pageToRemove) {
-//                    var adjacencyVector = self.adjacencyMatrix[row: pageIndexToRemove + self.notes.count]
-//                    adjacencyVector.removeFirst(self.notes.count)
-//                    if let pageIndexToAttach = adjacencyVector.firstIndex(of: max(adjacencyVector)) {
-//                        pages[pageIndexToAttach].attachedPages.append(pageToRemove)
-//                        pages[pageIndexToAttach].attachedPages += pages[pageIndexToRemove].attachedPages
-//                    }
                     try self.navigationMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.textualSimilarityMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.entitiesMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
@@ -815,17 +815,6 @@ public class Cluster {
         }
         preprocessedTitle = preprocessedTitle.capitalized.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespaces) + " and some text"
         return preprocessedTitle
-    }
-
-    /// When adding a new page, if it had been already visited and then deleted -
-    /// remove from attachedPages of whatever page it was attached to
-    ///
-    /// - Parameters:
-    ///   - newPageID: the ID of the page to add
-    func removeFromDeleted(newPageID: UUID) {
-        for page in self.pages.enumerated() {
-            pages[page.offset].attachedPages = page.element.attachedPages.filter {$0 != newPageID}
-        }
     }
     
     /// A function to calculate the similarities of notes and active sources with all sources that are in the same group,
@@ -903,7 +892,7 @@ public class Cluster {
             // If ranking is received, remove pages
             if let ranking = ranking {
                 do {
-                    try self.remove(ranking: ranking)
+                    try self.remove(ranking: ranking, activeSources: activeSources)
                 } catch let error {
                     completion(.failure(error))
                 }
@@ -952,11 +941,6 @@ public class Cluster {
                 }
             // New page or note
             } else {
-                // If page was visited in the past and deleted, remove from
-                // deleted pages
-                if let page = page {
-                    self.removeFromDeleted(newPageID: page.id)
-                }
                 // If new note without enogh text, abort
                 if let note = note {
                     guard let content = note.originalContent,
@@ -984,13 +968,15 @@ public class Cluster {
                     if let title = self.pages[newIndex].title {
                         self.pages[newIndex].title = self.titlePreprocessing(of: title)
                     }
-                    do {
-                        (self.pages[newIndex].cleanedContent, self.pages[newIndex].language) = try self.extractor.extract(from: self.pages[newIndex].originalContent ?? [""])
-                        self.pages[newIndex].originalContent = nil
-                    } catch {
-                    }
-                    if self.pages[newIndex].cleanedContent?.count ?? 0 > 10 {
-                        self.pagesWithContent += 1
+                    if page.cleanedContent == nil {
+                        do {
+                            (self.pages[newIndex].cleanedContent, self.pages[newIndex].language) = try self.extractor.extract(from: self.pages[newIndex].originalContent ?? [""])
+                            self.pages[newIndex].originalContent = nil
+                        } catch {
+                        }
+                        if self.pages[newIndex].cleanedContent?.count ?? 0 > 10 {
+                            self.pagesWithContent += 1
+                        }
                     }
                 } else if let note = note {
                     newIndex = self.notes.count
@@ -1087,7 +1073,6 @@ public class Cluster {
                 clusterizedNotes[label.element].append(self.notes[label.offset].id)
             } else {
                 clusterizedPages[label.element].append(self.pages[label.offset - self.notes.count].id)
-                clusterizedPages[label.element] += self.pages[label.offset - self.notes.count].attachedPages
             }
         }
         return (clusterizedPages, clusterizedNotes)

@@ -278,11 +278,6 @@ class ClusteringTests: XCTestCase {
             }
         }
         wait(for: [expectation], timeout: 1)
-        var attachedPages = [UUID]()
-        for page in cluster.pages {
-            attachedPages += page.attachedPages
-        }
-        expect(Set(attachedPages)) == Set([]) //Set([1, 4, 2])
         expect(cluster.adjacencyMatrix.rows) == 5 // 4 pages and one note
         expect(cluster.pages.count) == 4
         expect(cluster.notes.count) == 1
@@ -306,7 +301,7 @@ class ClusteringTests: XCTestCase {
             Page(id: UUIDs[3], parentId: UUIDs[0], title: "Page 4", cleanedContent: "The girl is carrying a baby."),
             Page(id: UUIDs[4], parentId: UUIDs[0], title: "Page 5", cleanedContent: "The girl is carrying a baby.")
             ]
-        for page in firstPages.enumerated() {
+        for page in (firstPages + secondPages).enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
@@ -314,14 +309,15 @@ class ClusteringTests: XCTestCase {
                 case .success(let result):
                     _ = result.0
                 }
-                if page.offset == firstPages.count - 1 {
+                if page.offset == (firstPages + secondPages).count - 1 {
                     firstExpectation.fulfill()
                 }
             })
         }
         wait(for: [firstExpectation], timeout: 1)
-        cluster.pages[0].attachedPages = [UUIDs[3]]
-        cluster.pages[1].attachedPages = [UUIDs[4]]
+        try cluster.remove(ranking: [UUIDs[3], UUIDs[4], UUID(), UUID(), UUID()], activeSources: [UUIDs[4]])
+        expect(cluster.pages.count) == 4 // pages 3 was removed but page 4 was not
+        expect(cluster.pages[3].id) == UUIDs[4]
         for page in secondPages.enumerated() {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
@@ -336,8 +332,8 @@ class ClusteringTests: XCTestCase {
             })
         }
         wait(for: [secondExpectation], timeout: 1)
-        expect(cluster.pages[0].attachedPages) == []
-        expect(cluster.pages[1].attachedPages) == []
+        expect(cluster.pages.count) == 5
+        expect(cluster.pages[4].id) == UUIDs[3]
     }
 
     /// When removing a page from the matrix, chage that if the most similar data point to that page is a note, that does not create a problem
@@ -386,7 +382,6 @@ class ClusteringTests: XCTestCase {
                                    [0.4, 0.6, 0.3, 0.5, 0.1, 0.1, 0.3, 0.4, 0]])
         try cluster.remove(ranking: [UUIDs[0]])
         expect(cluster.pages[0].id) == UUIDs[1]
-        expect(cluster.pages[0].attachedPages) == [] // [0]
     }
 
     /// Trying to add a note with little content should throw an expected error and not add the note

@@ -23,7 +23,6 @@ public struct Page {
     var entities: EntitiesInText?
     var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
-    var attachedPages = [UUID]()
 }
 
 public struct ClusteringNote {
