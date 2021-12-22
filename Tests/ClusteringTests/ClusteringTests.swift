@@ -114,7 +114,9 @@ class ClusteringTests: XCTestCase {
                 cluster.add(page: page.element, ranking: nil, completion: { result in
                     switch result {
                     case .failure(let error):
-                        XCTFail(error.localizedDescription)
+                        if error as! Cluster.AdditionError != .skippingToNextAddition {
+                            XCTFail(error.localizedDescription)
+                        }
                     case .success(let result):
                         _ = result.0
                     }
@@ -180,7 +182,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != Cluster.AdditionError.skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result.0
                 }
@@ -215,7 +219,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     if page.offset == pages.count - 1 {
                         expect(result.flag) == .sendRanking
@@ -256,7 +262,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: page.element, ranking: ranking, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result
                 }
@@ -270,7 +278,9 @@ class ClusteringTests: XCTestCase {
                 cluster.add(note: myNote, ranking: nil, completion: { result in
                     switch result {
                     case .failure(let error):
-                        XCTFail(error.localizedDescription)
+                        if error as! Cluster.AdditionError != .skippingToNextAddition {
+                            XCTFail(error.localizedDescription)
+                        }
                     case .success(let result):
                         _ = result
                     }
@@ -305,7 +315,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result.0
                 }
@@ -322,7 +334,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: page.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result.0
                 }
@@ -350,7 +364,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(page: myPage, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result.0
                 }
@@ -361,7 +377,9 @@ class ClusteringTests: XCTestCase {
             cluster.add(note: myNote, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .notEnoughTextInNote  && error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
                 case .success(let result):
                     _ = result.0
                 }
@@ -396,17 +414,24 @@ class ClusteringTests: XCTestCase {
             cluster.add(note: aNote.element, ranking: nil, completion: { result in
                 switch result {
                 case .failure(let error):
-                    if error as! Cluster.AdditionError != Cluster.AdditionError.notEnoughTextInNote {
-                        XCTFail(error.localizedDescription)
+                    if error as! Cluster.AdditionError != .notEnoughTextInNote && error as! Cluster.AdditionError != .skippingToNextAddition {
+                            XCTFail(error.localizedDescription)
                     }
                 case .success(let result):
                     _ = result.0
                 }
-                if aNote.offset == myNotes.count - 1 {
-                    expectation.fulfill()
-                }
             })
         }
+        let myPage = Page(id: UUID(), parentId: nil, title: "Page 1", cleanedContent: "A man is eating food.")
+        cluster.add(page: myPage, ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                XCTFail(error.localizedDescription)
+            case .success(let result):
+                _ = result.0
+                expectation.fulfill()
+            }
+        })
         wait(for: [expectation], timeout: 1)
         expect(cluster.notes.count) == 1
         expect(cluster.notes[0].id) == longNote.id
@@ -473,6 +498,45 @@ class ClusteringTests: XCTestCase {
         let result = try cluster.spectralClustering(on: adjacencySubgroup, numGroups: 2, numNotes: 2)
         expect(Set(result)) == Set([0, 1])
         expect(result[0]) != result[1]
+    }
+    
+    func testAddingDuringClustering() throws {
+        let cluster = Cluster()
+        cluster.isClustering = true
+        var UUIDs: [UUID] = []
+        for _ in 0...1 {
+            UUIDs.append(UUID())
+        }
+        let pages = [
+            Page(id: UUIDs[0], parentId: nil, title: "Page 1", cleanedContent: "A man is eating food."),
+            Page(id: UUIDs[1], parentId: UUIDs[0], title: "Page 2", cleanedContent: "The girl is carrying a baby."),
+            ]
+        let firstPageExpectation = self.expectation(description: "Add page when isClustering is true")
+        let secondPageExpectation = self.expectation(description: "Add page after isClustering is false again")
+        cluster.add(page: pages[0], ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                if error as! Cluster.AdditionError == .abortingAdditionDuringClustering {
+                    firstPageExpectation.fulfill()
+                } else {
+                    XCTFail("Expected error is aborting addition during clustering")
+                }
+            case .success:
+                XCTFail("Page added during clustering")
+            }
+        })
+        wait(for: [firstPageExpectation], timeout: 1)
+        cluster.isClustering = false
+        cluster.add(page: pages[1], ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                XCTFail(error.localizedDescription)
+            case .success(let result):
+                expect(result.pageGroups.flatMap{ $0 }.count) == 2
+                secondPageExpectation.fulfill()
+            }
+        })
+        wait(for: [secondPageExpectation], timeout: 1)
     }
     // swiftlint:disable:next file_length
 }
