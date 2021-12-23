@@ -114,13 +114,11 @@ public class Cluster {
         didSet {
              if !isClustering {
                  for page in skippedPages {
-                     self.add(page: page, ranking: nil) { result in
-                     }
+                     self.add(page: page, ranking: nil) { _ in }
                  }
                  self.skippedPages = []
                  for note in skippedNotes {
-                     self.add(note: note, ranking: nil) { result in
-                     }
+                     self.add(note: note, ranking: nil) { _ in }
                  }
                  self.skippedNotes = []
              }
