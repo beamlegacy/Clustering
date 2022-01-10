@@ -776,6 +776,24 @@ public class Cluster {
         self.adjacencyMatrix = self.threshold(matrix: self.adjacencyMatrix, threshold: 0.0001)
     }
 
+    public func removeNote(noteId: UUID) {
+        self.additionsInQueue += 1
+        additionQueue.async {
+            if let noteIndex = self.findNoteInNotes(noteID: noteId) {
+                do {
+                    try self.navigationMatrix.removeDataPoint(index: noteIndex)
+                    try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
+                    try self.entitiesMatrix.removeDataPoint(index: noteIndex)
+                    self.notes.remove(at: noteIndex)
+                    self.createAdjacencyMatrix()
+                } catch { } // This is pretty bad
+            }
+            DispatchQueue.main.async {
+                self.additionsInQueue -= 1
+            }
+        }
+    }
+    
     /// Remove pages (only) from the adjacency matrix but keep them by fixing them
     /// to another page (only) which is the most similar at the specific moment
     ///
