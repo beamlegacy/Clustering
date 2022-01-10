@@ -538,5 +538,53 @@ class ClusteringTests: XCTestCase {
         })
         wait(for: [secondPageExpectation], timeout: 1)
     }
+    
+    func testRemoveNote() throws {
+        let cluster = Cluster()
+        cluster.noteContentThreshold = 3
+        // Here we don't want to test that notes with little content are not added
+        let expectation = self.expectation(description: "Add note expectation")
+        var pageUUIDs: [UUID] = []
+        var noteUUIDs: [UUID] = []
+        for i in 0...2 {
+            pageUUIDs.append(UUID())
+            let myPage = Page(id: pageUUIDs[i], parentId: nil, title: nil, cleanedContent: "Here's some text for you")
+            // The pages themselves don't matter as we will later force the similarity matrix
+            cluster.add(page: myPage, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
+                case .success(let result):
+                    _ = result.0
+                }
+            })
+        }
+        for i in 0...2 {
+            noteUUIDs.append(UUID())
+            let myNote = ClusteringNote(id: noteUUIDs[i], title: "My note", content: ["This is my note"])
+            cluster.add(note: myNote, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    if error as! Cluster.AdditionError != .notEnoughTextInNote  && error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
+                case .success(let result):
+                    _ = result.0
+                }
+                if i == 2 {
+                    expectation.fulfill()
+                }
+            })
+            if i == 1 {
+                cluster.removeNote(noteId: noteUUIDs[0])
+            }
+        }
+        wait(for: [expectation], timeout: 1)
+        expect(cluster.notes.count) == 2
+        expect(cluster.notes[0].id) == noteUUIDs[1]
+        expect(cluster.notes[1].id) == noteUUIDs[2]
+    }
     // swiftlint:disable:next file_length
 }
