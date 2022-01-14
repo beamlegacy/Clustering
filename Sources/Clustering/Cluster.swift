@@ -100,7 +100,7 @@ public class Cluster {
     let entityOptions: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
     let entityTags: [NLTag] = [.personalName, .placeName, .organizationName]
     var timeToRemove: Double = 3 // If clustering takes more than this (in seconds) we start removing pages
-    let titleSuffixes = [" - Google Search", " - YouTube", "| Ebay", "| eBay"]
+    let titleSuffixes = [" - Google Search", " - YouTube", "| Ebay", "| eBay", " - Ecosia", " at DuckDuckGo", " - Bing", " | The Guardian"]
     let titlePrefixes = ["Amazon.com"]
     let beta = 50.0
     var noteContentThreshold: Int
