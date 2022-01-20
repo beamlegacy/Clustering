@@ -829,21 +829,21 @@ public class Cluster {
     /// - Parameters:
     ///   - title: The title to be preprocesses
     /// - Returns: A preprocessed version of the title
-    func titlePreprocessing(of title: String) -> String {
-        var preprocessedTitle = title
-        for prefix in self.titlePrefixes {
-            if preprocessedTitle.hasPrefix(prefix) {
+    func titlePreprocessing(of title: String, adress url: URL? = nil) -> String {
+        let hostTokens = url?.host?.components(separatedBy: CharacterSet(charactersIn: "./"))
+        var preprocessedTitle = title.lowercased().applyingTransform(.stripDiacritics, reverse: false) ?? title.lowercased()
+        for prefix in (self.titlePrefixes + (hostTokens ?? [])) {
+            if preprocessedTitle.hasPrefix(prefix.lowercased()) {
                 preprocessedTitle = String(preprocessedTitle.dropFirst(prefix.count))
-                break
             }
         }
-        for suffix in self.titleSuffixes {
-            if preprocessedTitle.hasSuffix(suffix) {
+        for suffix in (self.titleSuffixes + (hostTokens ?? [])) {
+            if preprocessedTitle.hasSuffix(suffix.lowercased()) {
                 preprocessedTitle = String(preprocessedTitle.dropLast(suffix.count))
-                break
             }
         }
-        preprocessedTitle = preprocessedTitle.capitalized.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespaces) + " and some text"
+        let charactersToTrim: CharacterSet = .whitespaces.union(.punctuationCharacters).union(CharacterSet(charactersIn: "|"))
+        preprocessedTitle = preprocessedTitle.capitalized.trimmingCharacters(in: charactersToTrim) + " and some text"
         return preprocessedTitle
     }
     
@@ -954,7 +954,7 @@ public class Cluster {
                     navigationSimilarities[parent_index + self.notes.count] = 1.0
                 }
                 if let title = self.pages[newIndex].title {
-                    self.pages[newIndex].title = self.titlePreprocessing(of: title)
+                    self.pages[newIndex].title = self.titlePreprocessing(of: title, adress: page.url)
                 }
                 if page.cleanedContent == nil {
                     do {
