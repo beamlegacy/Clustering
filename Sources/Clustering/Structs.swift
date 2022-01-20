@@ -6,12 +6,13 @@ struct EntitiesInText {
 }
 
 public struct Page {
-    public init(id: UUID, parentId: UUID? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil) {
+    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
         self.originalContent = originalContent
         self.cleanedContent = cleanedContent
+        self.url = url
     }
 
     var id: UUID
@@ -23,6 +24,7 @@ public struct Page {
     var entities: EntitiesInText?
     var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
+    var url: URL?
 }
 
 public struct ClusteringNote {
