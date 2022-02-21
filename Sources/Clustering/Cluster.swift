@@ -674,6 +674,10 @@ public class Cluster {
     public func getCleanedContentFromPageId(pageID: UUID) -> String {
         let idx = findPageInPages(pageID: pageID) ?? -1
         
+        if idx == -1 {
+            return ""
+        }
+        
         return self.pages[idx].cleanedContent ?? ""
     }
     
