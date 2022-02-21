@@ -149,9 +149,9 @@ public class Cluster {
         }
     }
     
-    public func getCleanedContentFromPageUrl(url: URL) -> String {
+    public func getCleanedContentFromPageId(pageID: UUID) -> String {
         for page in self.pages {
-            if page.url == url {
+            if page.id == pageID {
                 return page.cleanedContent ?? ""
             }
         }
