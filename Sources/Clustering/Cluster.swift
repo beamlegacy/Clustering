@@ -148,6 +148,16 @@ public class Cluster {
             fatalError()
         }
     }
+    
+    public func getCleanedContentFromPageUrl(url: URL) -> String {
+        for page in self.pages {
+            if page.url == url {
+                return page.cleanedContent ?? ""
+            }
+        }
+        
+        return ""
+    }
 
     public class SimilarityMatrix {
         var matrix = Matrix([[0]])
