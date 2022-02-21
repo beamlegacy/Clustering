@@ -665,6 +665,43 @@ public class Cluster {
         let pageIDs = self.pages.map({ $0.id })
         return pageIDs.firstIndex(of: pageID)
     }
+    
+    /// Get the cleaned text associated to a page ID.
+    ///
+    /// - Parameters:
+    ///   - pageID: The ID of the desired page
+    /// - Returns: The cleaned text
+    public func getCleanedContentFromPageId(pageID: UUID) -> String {
+        let idx = findPageInPages(pageID: pageID) ?? -1
+        
+        if idx == -1 {
+            return ""
+        }
+        
+        return self.pages[idx].cleanedContent ?? ""
+    }
+    
+    /// Get the cleaned text associated to multiple pages ID.
+    ///
+    /// - Parameters:
+    ///   - pageID: A list of ID of the desired pages
+    /// - Returns: A dictionary of the cleaned text
+    public func getCleanedContentFromPagesId(pagesID: [UUID]) -> [UUID: String] {
+        var textualDict: [UUID: String] = [:]
+        
+        for pageID in pagesID {
+            textualDict[pageID] = self.getCleanedContentFromPageId(pageID: pageID)
+        }
+        
+        return textualDict
+    }
+    
+    /// Get all the cleaned text associated to each page ID.
+    ///
+    /// - Returns: A dictionary of all the cleaned text
+    public func getAllCleanedContent() -> [UUID: String?] {
+        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), self.pages.map({ $0.cleanedContent })))
+    }
 
     /// Find the location of a specific note in the notes array
     ///
