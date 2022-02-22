@@ -699,8 +699,8 @@ public class Cluster {
     /// Get all the cleaned text associated to each page ID.
     ///
     /// - Returns: A dictionary of all the cleaned text
-    public func getAllCleanedContent() -> [UUID: String?] {
-        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), self.pages.map({ $0.cleanedContent })))
+    public func getAllCleanedContent() -> [UUID: String] {
+        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), self.pages.map({ $0.cleanedContent ?? "" })))
     }
 
     /// Find the location of a specific note in the notes array

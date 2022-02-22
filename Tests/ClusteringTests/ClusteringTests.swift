@@ -604,5 +604,51 @@ class ClusteringTests: XCTestCase {
         expect(cluster.pages[0].title) == "Roger Federer Is The Best Tennis Player Ever and some text"
         expect(cluster.pages[0].entitiesInTitle?.entities["PersonalName"]?[0]) == "roger federer"
     }
+    
+    func testGetCleanedContentFromPageIdExists() {
+        var UUIDs: [UUID] = []
+        for _ in 0...1 {
+            UUIDs.append(UUID())
+        }
+        let pages = [
+            Page(id: UUIDs[0], parentId: nil, title: "man", cleanedContent: "A man is eating food."),
+            ]
+        let cluster = Cluster()
+        for page in pages {
+            cluster.add(page: page, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    _ = result.0
+                }
+            })
+        }
+        let txt = cluster.getCleanedContentFromPageId(pageID: UUIDs[0])
+        expect(txt) == "A man is eating food."
+    }
+    
+    func testGetCleanedContentFromPageIdNotExists() {
+        var UUIDs: [UUID] = []
+        for _ in 0...2 {
+            UUIDs.append(UUID())
+        }
+        let pages = [
+            Page(id: UUIDs[0], parentId: nil, title: "man", cleanedContent: "A man is eating food."),
+            ]
+        let cluster = Cluster()
+        for page in pages {
+            cluster.add(page: page, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    XCTFail(error.localizedDescription)
+                case .success(let result):
+                    _ = result.0
+                }
+            })
+        }
+        let txt = cluster.getCleanedContentFromPageId(pageID: UUIDs[1])
+        expect(txt) == ""
+    }
     // swiftlint:disable:next file_length
 }
