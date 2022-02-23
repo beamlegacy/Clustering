@@ -702,6 +702,45 @@ public class Cluster {
     public func getAllCleanedContent() -> [UUID: String] {
         return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), self.pages.map({ $0.cleanedContent ?? "" })))
     }
+    
+    /// Get the Named Entities associated to a page ID.
+    ///
+    /// - Parameters:
+    ///   - pageID: The ID of the desired page
+    /// - Returns: The Named Entities
+    public func getNamedEntitiesFromPageId(pageID: UUID) -> (EntitiesInText, EntitiesInText) {
+        let idx = findPageInPages(pageID: pageID) ?? -1
+        
+        if idx == -1 {
+            return (EntitiesInText(), EntitiesInText())
+        }
+        
+        return (self.pages[idx].entities ?? EntitiesInText(), self.pages[idx].entitiesInTitle ?? EntitiesInText())
+    }
+    
+    /// Get the Named Entities associated to multiple pages ID.
+    ///
+    /// - Parameters:
+    ///   - pageID: A list of ID of the desired pages
+    /// - Returns: A dictionary of Named Entities
+    public func getNamedEntitiesFromPagesId(pagesID: [UUID]) -> [UUID: (EntitiesInText, EntitiesInText)] {
+        var NamedEntitiesDict: [UUID: (EntitiesInText, EntitiesInText)] = [:]
+        
+        for pageID in pagesID {
+            NamedEntitiesDict[pageID] = self.getNamedEntitiesFromPageId(pageID: pageID)
+        }
+        
+        return NamedEntitiesDict
+    }
+    
+    /// Get all the Named Entities associated to each page ID.
+    ///
+    /// - Returns: A dictionary of all the Named Entities
+    public func getAllCleanedContent() -> [UUID: (EntitiesInText, EntitiesInText)] {
+        let values = zip(self.pages.map({ $0.entities ?? EntitiesInText() }), self.pages.map({ $0.entitiesInTitle ?? EntitiesInText() }))
+        
+        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), values))
+    }
 
     /// Find the location of a specific note in the notes array
     ///

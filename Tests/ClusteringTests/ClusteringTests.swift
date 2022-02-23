@@ -605,6 +605,49 @@ class ClusteringTests: XCTestCase {
         expect(cluster.pages[0].entitiesInTitle?.entities["PersonalName"]?[0]) == "roger federer"
     }
     
+    func testgetNamedEntitiesFromPageIdExists() throws {
+        let cluster = Cluster()
+        let uuid = UUID()
+        let expectation = self.expectation(description: "Add page expectation")
+        let myPage = Page(id: uuid, parentId: nil, title: "Roger Federer is the best tennis player ever", cleanedContent: "He was born on 8 August 1981 in Basel.")
+        cluster.add(page: myPage, ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                XCTFail(error.localizedDescription)
+            case .success(let result):
+                _ = result.0
+            }
+            expectation.fulfill()
+        })
+        wait(for: [expectation], timeout: 1)
+        let nes = cluster.getNamedEntitiesFromPageId(pageID: uuid)
+        var goldenNes = EntitiesInText()
+        goldenNes.entities["PlaceName"]?.append("basel")
+        var goldenNesTitle = EntitiesInText()
+        goldenNesTitle.entities["PersonalName"]?.append("roger federer")
+        
+        expect(nes) == (goldenNes, goldenNesTitle)
+    }
+    
+    func testgetNamedEntitiesFromPageIdNotExists() throws {
+        let cluster = Cluster()
+        let uuid = UUID()
+        let expectation = self.expectation(description: "Add page expectation")
+        let myPage = Page(id: uuid, parentId: nil, title: "Roger Federer is the best tennis player ever", cleanedContent: "He was born on 8 August 1981 in Basel.")
+        cluster.add(page: myPage, ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                XCTFail(error.localizedDescription)
+            case .success(let result):
+                _ = result.0
+            }
+            expectation.fulfill()
+        })
+        wait(for: [expectation], timeout: 1)
+        let nes = cluster.getNamedEntitiesFromPageId(pageID: UUID())
+        expect(nes) == (EntitiesInText(), EntitiesInText())
+    }
+    
     func testGetCleanedContentFromPageIdExists() {
         let uuid = UUID()
         let page = Page(id: uuid, parentId: nil, title: "man", cleanedContent: "A man is eating food.")

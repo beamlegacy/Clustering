@@ -1,8 +1,11 @@
 import Foundation
 import NaturalLanguage
 
-struct EntitiesInText {
+public struct EntitiesInText : Equatable {
     var entities = ["PersonalName": [String](), "PlaceName": [String](), "OrganizationName": [String]()]
+    var description: String {
+        return "PER[" + entities["PersonalName"]!.description + "] - LOC[" + entities["PlaceName"]!.description + "] - ORG[" + entities["OrganizationName"]!.description + "]"
+    }
 }
 
 public struct Page {
