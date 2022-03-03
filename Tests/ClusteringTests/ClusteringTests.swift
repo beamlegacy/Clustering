@@ -604,12 +604,12 @@ class ClusteringTests: XCTestCase {
         expect(cluster.pages[0].title) == "Roger Federer Is The Best Tennis Player Ever and some text"
         expect(cluster.pages[0].entitiesInTitle?.entities["PersonalName"]?[0]) == "roger federer"
     }
-    
-    func testgetNamedEntitiesFromPageIdExists() throws {
+
+    func testGetExportInformationForIdPage() throws {
         let cluster = Cluster()
-        let uuid = UUID()
+        let pageId = UUID()
         let expectation = self.expectation(description: "Add page expectation")
-        let myPage = Page(id: uuid, parentId: nil, title: "Roger Federer is the best tennis player ever", cleanedContent: "He was born on 8 August 1981 in Basel.")
+        let myPage = Page(id: pageId, parentId: nil, title: "Roger Federer", cleanedContent: "He was born on 8 August 1981 in Basel.")
         cluster.add(page: myPage, ranking: nil, completion: { result in
             switch result {
             case .failure(let error):
@@ -620,21 +620,20 @@ class ClusteringTests: XCTestCase {
             expectation.fulfill()
         })
         wait(for: [expectation], timeout: 1)
-        let nes = cluster.getNamedEntitiesFromPageId(pageID: uuid)
-        var goldenNes = EntitiesInText()
-        goldenNes.entities["PlaceName"]?.append("basel")
-        var goldenNesTitle = EntitiesInText()
-        goldenNesTitle.entities["PersonalName"]?.append("roger federer")
-        
-        expect(nes) == (goldenNes, goldenNesTitle)
+        cluster.pages[0].language = NLLanguage.english // Normally cleaned content is only accepted in the method call when PnS is used. Here, in order to test getInformationForId we force language detection
+        let pageInformation = cluster.getExportInformationForId(id: pageId)
+        let expectedInformation = InformationForId(title: "Roger Federer and some text", cleanedContent: "He was born on 8 August 1981 in Basel.", entitiesInText: EntitiesInText(entities: ["PersonalName": [String](), "PlaceName": ["basel"], "OrganizationName": [String]()]), entitiesInTitle: EntitiesInText(entities: ["PersonalName": ["roger federer"], "PlaceName": [String](), "OrganizationName": [String]()]), language: NLLanguage.english)
+        expect(pageInformation) == expectedInformation
+        let emptyInformation = cluster.getExportInformationForId(id: UUID())
+        expect(emptyInformation) == InformationForId()
     }
-    
-    func testgetNamedEntitiesFromPageIdNotExists() throws {
+
+    func testGetInformationForIdNote() throws {
         let cluster = Cluster()
-        let uuid = UUID()
-        let expectation = self.expectation(description: "Add page expectation")
-        let myPage = Page(id: uuid, parentId: nil, title: "Roger Federer is the best tennis player ever", cleanedContent: "He was born on 8 August 1981 in Basel.")
-        cluster.add(page: myPage, ranking: nil, completion: { result in
+        let noteId = UUID()
+        let expectation = self.expectation(description: "Add note expectation")
+        let myNote = ClusteringNote(id: noteId, title: "Roger Federer", content: ["Federer has played in an era where he dominated men's tennis along with Rafael Nadal and Novak Djokovic. Referred to as the Big Three, they are considered by some to be the three greatest tennis players of all time.[c] A Wimbledon junior champion in 1998, Federer won his first major singles title at Wimbledon in 2003 at age 21. In 2004, he won three of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, he made 18 out of 19 major singles finals. During this span, he won five consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-up finishes to Nadal, his main rival until 2010. At age 27, he surpassed Pete Sampras's record of 14 major men's singles titles at Wimbledon in 2009."])
+        cluster.add(note: myNote, ranking: nil, completion: { result in
             switch result {
             case .failure(let error):
                 XCTFail(error.localizedDescription)
@@ -644,46 +643,11 @@ class ClusteringTests: XCTestCase {
             expectation.fulfill()
         })
         wait(for: [expectation], timeout: 1)
-        let nes = cluster.getNamedEntitiesFromPageId(pageID: UUID())
-        expect(nes) == (EntitiesInText(), EntitiesInText())
-    }
-    
-    func testGetCleanedContentFromPageIdExists() {
-        let uuid = UUID()
-        let page = Page(id: uuid, parentId: nil, title: "man", cleanedContent: "A man is eating food.")
-        let cluster = Cluster()
-        let expectation = self.expectation(description: "Add page expectation")
-        cluster.add(page: page, ranking: nil, completion: { result in
-            switch result {
-            case .failure(let error):
-                XCTFail(error.localizedDescription)
-            case .success(let result):
-                _ = result.0
-            }
-            expectation.fulfill()
-        })
-        wait(for: [expectation], timeout: 1)
-        let txt = cluster.getCleanedContentFromPageId(pageID: uuid)
-        expect(txt) == "A man is eating food."
-    }
-    
-    func testGetCleanedContentFromPageIdNotExists() {
-        let uuid = UUID()
-        let page = Page(id: uuid, parentId: nil, title: "man", cleanedContent: "A man is eating food.")
-        let cluster = Cluster()
-        let expectation = self.expectation(description: "Add page expectation")
-        cluster.add(page: page, ranking: nil, completion: { result in
-            switch result {
-            case .failure(let error):
-                XCTFail(error.localizedDescription)
-            case .success(let result):
-                _ = result.0
-            }
-            expectation.fulfill()
-        })
-        wait(for: [expectation], timeout: 1)
-        let txt = cluster.getCleanedContentFromPageId(pageID: UUID())
-        expect(txt) == ""
+        let noteInformation = cluster.getExportInformationForId(id: noteId)
+        let expectedInformation = InformationForId(title: "Roger Federer and some text", cleanedContent: "Federer has played in an era where he dominated men\'s tennis along with Rafael Nadal and Novak Djokovic. Referred to as the Big Three, they are considered by some to be the three greatest tennis players of all time.[c] A Wimbledon junior champion in 1998, Federer won his first major singles title at Wimbledon in 2003 at age 21. In 2004, he won three of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, he made 18 out of 19 major singles finals. During this span, he won five consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-up finishes to Nadal, his main rival until 2010. At age 27, he surpassed Pete Sampras\'s record of 14 major men\'s singles titles at Wimbledon in 2009.", entitiesInText: EntitiesInText(entities: ["PlaceName": ["wimbledon"], "PersonalName": ["federer", "rafael nadal", "novak djokovic", "nadal", "pete sampras"], "OrganizationName": ["atp finals"]]), entitiesInTitle: EntitiesInText(entities: ["PersonalName": ["roger federer"], "PlaceName": [String](), "OrganizationName": [String]()]), language: NLLanguage.english)
+        expect(noteInformation) == expectedInformation
+        let emptyInformation = cluster.getExportInformationForId(id: UUID())
+        expect(emptyInformation) == InformationForId()
     }
     // swiftlint:disable:next file_length
 }

@@ -8,6 +8,14 @@ public struct EntitiesInText : Equatable {
     }
 }
 
+public struct InformationForId: Equatable {
+    public var title: String? = nil
+    public var cleanedContent: String? = nil
+    public var entitiesInText: EntitiesInText? = nil
+    public var entitiesInTitle: EntitiesInText? = nil
+    public var language: NLLanguage? = nil
+}
+
 public struct Page {
     public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil) {
         self.id = id
