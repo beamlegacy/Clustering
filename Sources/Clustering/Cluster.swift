@@ -665,82 +665,6 @@ public class Cluster {
         let pageIDs = self.pages.map({ $0.id })
         return pageIDs.firstIndex(of: pageID)
     }
-    
-    /// Get the cleaned text associated to a page ID.
-    ///
-    /// - Parameters:
-    ///   - pageID: The ID of the desired page
-    /// - Returns: The cleaned text
-    public func getCleanedContentFromPageId(pageID: UUID) -> String {
-        let idx = findPageInPages(pageID: pageID) ?? -1
-        
-        if idx == -1 {
-            return ""
-        }
-        
-        return self.pages[idx].cleanedContent ?? ""
-    }
-    
-    /// Get the cleaned text associated to multiple pages ID.
-    ///
-    /// - Parameters:
-    ///   - pageID: A list of ID of the desired pages
-    /// - Returns: A dictionary of the cleaned text
-    public func getCleanedContentFromPagesId(pagesID: [UUID]) -> [UUID: String] {
-        var textualDict: [UUID: String] = [:]
-        
-        for pageID in pagesID {
-            textualDict[pageID] = self.getCleanedContentFromPageId(pageID: pageID)
-        }
-        
-        return textualDict
-    }
-    
-    /// Get all the cleaned text associated to each page ID.
-    ///
-    /// - Returns: A dictionary of all the cleaned text
-    public func getAllCleanedContent() -> [UUID: String] {
-        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), self.pages.map({ $0.cleanedContent ?? "" })))
-    }
-    
-    /// Get the Named Entities associated to a page ID.
-    ///
-    /// - Parameters:
-    ///   - pageID: The ID of the desired page
-    /// - Returns: The Named Entities
-    public func getNamedEntitiesFromPageId(pageID: UUID) -> (EntitiesInText, EntitiesInText) {
-        let idx = findPageInPages(pageID: pageID) ?? -1
-        
-        if idx == -1 {
-            return (EntitiesInText(), EntitiesInText())
-        }
-        
-        return (self.pages[idx].entities ?? EntitiesInText(), self.pages[idx].entitiesInTitle ?? EntitiesInText())
-    }
-    
-    /// Get the Named Entities associated to multiple pages ID.
-    ///
-    /// - Parameters:
-    ///   - pageID: A list of ID of the desired pages
-    /// - Returns: A dictionary of Named Entities
-    public func getNamedEntitiesFromPagesId(pagesID: [UUID]) -> [UUID: (EntitiesInText, EntitiesInText)] {
-        var NamedEntitiesDict: [UUID: (EntitiesInText, EntitiesInText)] = [:]
-        
-        for pageID in pagesID {
-            NamedEntitiesDict[pageID] = self.getNamedEntitiesFromPageId(pageID: pageID)
-        }
-        
-        return NamedEntitiesDict
-    }
-    
-    /// Get all the Named Entities associated to each page ID.
-    ///
-    /// - Returns: A dictionary of all the Named Entities
-    public func getAllCleanedContent() -> [UUID: (EntitiesInText, EntitiesInText)] {
-        let values = zip(self.pages.map({ $0.entities ?? EntitiesInText() }), self.pages.map({ $0.entitiesInTitle ?? EntitiesInText() }))
-        
-        return Dictionary(uniqueKeysWithValues: zip(self.pages.map({ $0.id }), values))
-    }
 
     /// Find the location of a specific note in the notes array
     ///
@@ -750,6 +674,21 @@ public class Cluster {
     func findNoteInNotes(noteID: UUID) -> Int? {
         let noteIDs = self.notes.map({ $0.id })
         return noteIDs.firstIndex(of: noteID)
+    }
+
+    /// A method that returns all data related to a page or a note for the purpose of exportation
+    ///
+    /// - Parameters:
+    ///   - id: The ID of a page or a note
+    /// - Returns: InformationForId struct with all relevant information
+    public func getExportInformationForId(id: UUID) -> InformationForId {
+        if let pageIndex = findPageInPages(pageID: id) {
+            return InformationForId(title: pages[pageIndex].title, cleanedContent: pages[pageIndex].cleanedContent, entitiesInText: pages[pageIndex].entities, entitiesInTitle: pages[pageIndex].entitiesInTitle, language: pages[pageIndex].language)
+        } else if let noteIndex = findNoteInNotes(noteID: id) {
+            return InformationForId(title: notes[noteIndex].title, cleanedContent: notes[noteIndex].cleanedContent, entitiesInText: notes[noteIndex].entities, entitiesInTitle: notes[noteIndex].entitiesInTitle, language: notes[noteIndex].language)
+        } else {
+            return InformationForId()
+        }
     }
 
     /// Binarize a matrix according to a threshold (over = 1, under = 0).
