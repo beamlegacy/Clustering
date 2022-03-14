@@ -14,6 +14,7 @@ public struct InformationForId: Equatable {
     public var entitiesInText: EntitiesInText? = nil
     public var entitiesInTitle: EntitiesInText? = nil
     public var language: NLLanguage? = nil
+    public var parentId: UUID? = nil
 }
 
 public struct Page {

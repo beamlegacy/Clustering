@@ -683,7 +683,7 @@ public class Cluster {
     /// - Returns: InformationForId struct with all relevant information
     public func getExportInformationForId(id: UUID) -> InformationForId {
         if let pageIndex = findPageInPages(pageID: id) {
-            return InformationForId(title: pages[pageIndex].title, cleanedContent: pages[pageIndex].cleanedContent, entitiesInText: pages[pageIndex].entities, entitiesInTitle: pages[pageIndex].entitiesInTitle, language: pages[pageIndex].language)
+            return InformationForId(title: pages[pageIndex].title, cleanedContent: pages[pageIndex].cleanedContent, entitiesInText: pages[pageIndex].entities, entitiesInTitle: pages[pageIndex].entitiesInTitle, language: pages[pageIndex].language, parentId: pages[pageIndex].parentId)
         } else if let noteIndex = findNoteInNotes(noteID: id) {
             return InformationForId(title: notes[noteIndex].title, cleanedContent: notes[noteIndex].cleanedContent, entitiesInText: notes[noteIndex].entities, entitiesInTitle: notes[noteIndex].entitiesInTitle, language: notes[noteIndex].language)
         } else {
