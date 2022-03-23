@@ -649,5 +649,26 @@ class ClusteringTests: XCTestCase {
         let emptyInformation = cluster.getExportInformationForId(id: UUID())
         expect(emptyInformation) == InformationForId()
     }
+
+    func testCheckShortNote() throws {
+        let cluster = Cluster()
+        let expectation = self.expectation(description: "Add short note expectation")
+        let myNote = ClusteringNote(id: UUID(), title: "Roger Federer", content: ["Roger Federer is the best Tennis player in history"])
+        var myFailure: String?
+        cluster.add(note: myNote, ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                if error as! Cluster.AdditionError == .notEnoughTextInNote {
+                    myFailure = error.localizedDescription
+                }
+                expectation.fulfill()
+            case .success(let result):
+                _ = result
+                expectation.fulfill()
+            }
+        })
+        wait(for: [expectation], timeout: 1)
+        expect(myFailure ?? "") == "The operation couldn’t be completed. (Clustering.Cluster.AdditionError error 2.)"
+    }
     // swiftlint:disable:next file_length
 }
