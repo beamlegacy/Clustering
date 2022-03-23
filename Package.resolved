@@ -41,9 +41,27 @@
         "package": "Quick",
         "repositoryURL": "https://github.com/Quick/Quick.git",
         "state": {
-          "branch": "main",
-          "revision": "5c314aee22c6f8faef820c10523bdad6980f1494",
-          "version": null
+          "branch": null,
+          "revision": "8cce6acd38f965f5baa3167b939f86500314022b",
+          "version": "3.1.2"
+        }
+      },
+      {
+        "package": "swift-argument-parser",
+        "repositoryURL": "https://github.com/apple/swift-argument-parser",
+        "state": {
+          "branch": null,
+          "revision": "82905286cc3f0fa8adc4674bf49437cab65a8373",
+          "version": "1.1.1"
+        }
+      },
+      {
+        "package": "SwiftCSV",
+        "repositoryURL": "https://github.com/swiftcsv/SwiftCSV.git",
+        "state": {
+          "branch": null,
+          "revision": "039cc273dcc91f4c9d85e05a2514bbe63e7dde60",
+          "version": "0.6.1"
         }
       }
     ]
