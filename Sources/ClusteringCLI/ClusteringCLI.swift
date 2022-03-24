@@ -10,7 +10,6 @@ import Foundation
 import Clustering
 import SwiftCSV
 
-
 @main
 struct ClusteringCLI: ParsableCommand {
     @Argument(help: "The CSV file to inject in the Clustering package.")
@@ -19,22 +18,23 @@ struct ClusteringCLI: ParsableCommand {
 
 extension ClusteringCLI {
     mutating func run() throws {
-        let cluster = Cluster()
+        let cluster = Cluster(useMainQueue: false)
         var pages: [Page] = []
         var notes: [ClusteringNote] = []
         var noteIds: [UUID] = []
         var pageIds: [UUID] = []
         let csvFile: CSV = try CSV(url: URL(fileURLWithPath: inputFile))
-        
+
         try csvFile.enumerateAsDict { dict in
-            if dict["pageId"] == "<???>" {
+            print("\(dict)")
+            if dict["Id"] == "<???>" {
                 if let title = dict["title"], let content = dict["cleanedContent"] {
                     let currentId = UUID()
                     noteIds.append(currentId)
                     notes.append(ClusteringNote(id: currentId, title: title, content: [content]))
                 }
             } else {
-                if let pageId = dict["pageId"], let parentId = dict["parentId"], let title = dict["title"], let cleanedContent = dict["cleanedContent"], let url = dict["url"] {
+                if let pageId = dict["Id"], let parentId = dict["parentId"], let title = dict["title"], let cleanedContent = dict["cleanedContent"], let url = dict["url"] {
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
@@ -45,56 +45,54 @@ extension ClusteringCLI {
                 }
             }
         }
-        
-        //var semaphore = DispatchSemaphore(value: 0)
+
         var clusteringNotes = 0
-        let myGroup = DispatchGroup()
+        let group = DispatchGroup()
+
         for note in notes.enumerated() {
-            myGroup.enter()
-            cluster.add(note: note.element, ranking: nil, completion: { result in
-                switch result {
-                case .failure(let error):
-                    print(error)
-                    clusteringNotes +=  1
-                    myGroup.leave()
-                case .success(let result):
-                    _ = result.0
-                    clusteringNotes +=  1
-                    myGroup.leave()
-                }
-                
-                //if clusteringNotes == notes.count {
-                //    semaphore.signal()
-                //}
-            })
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                cluster.add(note: note.element, ranking: nil, completion: { result in
+                    switch result {
+                    case .failure(let error):
+                        print(error)
+                        clusteringNotes +=  1
+                    case .success(let result):
+                        _ = result.0
+                        clusteringNotes +=  1
+                    }
+                    group.leave()
+                    //if clusteringNotes == notes.count {
+                    //    semaphore.signal()
+                    //}
+                })
+            }
         }
 
-        //semaphore.wait()
-        myGroup.notify(queue: .main) {
-            print("Finished all requests.")
-        }
+        group.wait()
+        print("GroupEnd", clusteringNotes)
 
-        let semaphore = DispatchSemaphore(value: 0)
         var clusteringPages = 0
-        
+
         for page in pages.enumerated() {
-            cluster.add(page: page.element, ranking: nil, completion: { result in
-                switch result {
-                case .failure(let error):
-                    print(error)
-                    clusteringPages += 1
-                case .success(let result):
-                    _ = result.0
-                    clusteringPages += 1
-                }
-                if clusteringPages == pages.count {
-                    semaphore.signal()
-                }
-            })
+            group.enter()
+            DispatchQueue.global(qos: .userInteractive).async {
+                cluster.add(page: page.element, ranking: nil, completion: { result in
+                    switch result {
+                    case .failure(let error):
+                        print(error)
+                        clusteringPages += 1
+                    case .success(let result):
+                        _ = result.0
+                        clusteringPages += 1
+                    }
+                    group.leave()
+                })
+            }
         }
-        
-        semaphore.wait()
-        
+        group.wait()
+        print("GroupEnd", clusteringPages)
+
         for nid in noteIds {
             print(cluster.getExportInformationForId(id: nid))
         }
@@ -102,5 +100,6 @@ extension ClusteringCLI {
         for pid in pageIds {
             print(cluster.getExportInformationForId(id: pid))
         }
+        print("Over")
     }
 }
