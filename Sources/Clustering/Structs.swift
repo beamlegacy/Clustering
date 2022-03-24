@@ -6,6 +6,20 @@ public struct EntitiesInText : Equatable {
     public var description: String {
         return "PER[" + entities["PersonalName"]!.description + "] - LOC[" + entities["PlaceName"]!.description + "] - ORG[" + entities["OrganizationName"]!.description + "]"
     }
+    var isEmpty: Bool {
+        if (entities["PersonalName"]?.count ?? 0) + (entities["PlaceName"]?.count ?? 0) + (entities["OrganizationName"]?.count ?? 0) == 0 {
+            return true
+        } else {
+            return false
+        }
+    }
+}
+func + (left: EntitiesInText, right: EntitiesInText) -> EntitiesInText {
+    var totalEntities = EntitiesInText()
+    totalEntities.entities["PersonalName"] = (left.entities["PersonalName"] ?? []) + (right.entities["PersonalName"] ?? [])
+    totalEntities.entities["PlaceName"] = (left.entities["PlaceName"] ?? []) + (right.entities["PlaceName"] ?? [])
+    totalEntities.entities["OrganizationName"] = (left.entities["OrganizationName"] ?? []) + (right.entities["OrganizationName"] ?? [])
+    return totalEntities
 }
 
 public struct InformationForId: Equatable {
@@ -37,6 +51,7 @@ public struct Page {
     var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
     var url: URL?
+    var domain: String?
 }
 
 public struct ClusteringNote {

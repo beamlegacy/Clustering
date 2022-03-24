@@ -136,7 +136,7 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.4, noteContentThreshold: Int = 100) {
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100) {
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
@@ -478,57 +478,45 @@ public class Cluster {
         return scores
     }
 
-    /// Compute the entity similarity between the current data point to be added/changed and all existing data points
+    /// Compute the entity similarity between the current data point to be added/changed and all existing data points. This is a new version that compares entities across both titles and text content without seperating them
     ///
     /// - Parameters:
     ///   - entitiesInText: The entities found in the current text
-    ///   - whichText: Is the current text the content or title of the data point
     ///   - index: The index of the data point within the corresponding vector (pages or notes)
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
+    ///   - domain : The domain of the page, in case it is indeed a page
     /// - Returns: A list of similarity scores
-    // swiftlint:disable:next cyclomatic_complexity
-    func scoreEntitySimilarities(entitiesInNewText: EntitiesInText, in whichText: FindEntitiesIn, index: Int, dataPointType: DataPoint, changeContent: Bool = false) -> [Double] {
+    func scoreEntitySimilaritiesInFullDataPoint(entitiesInNewDataPoint: EntitiesInText, index: Int, dataPointType: DataPoint, changeContent: Bool = false, domain: String? = nil) -> [Double] {
         var scores = [Double]()
-        switch whichText {
-        case .content:
-            for note in notes.enumerated() {
-                if dataPointType == .note {
-                    if !changeContent && note.offset == index { break }
-                    scores.append(0.0)
-                } else if let entitiesInNote = note.element.entities {
-                    scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInNote))
+        for note in notes.enumerated() {
+            if dataPointType == .note {
+                if !changeContent && note.offset == index { break }
+                scores.append(0.0)
+            } else {
+                let entitiesInNote = (note.element.entities ?? EntitiesInText()) + (note.element.entitiesInTitle ?? EntitiesInText())
+                if !entitiesInNote.isEmpty {
+                    scores.append(self.jaccardEntities(entitiesText1: entitiesInNewDataPoint, entitiesText2: entitiesInNote))
                 } else {
-                    scores.append(0.0)
+                scores.append(0.0)
                 }
             }
-            for page in pages.enumerated() {
-                if page.offset == index  && dataPointType == .page {
-                    if changeContent {
-                        scores.append(0.0)
-                    } else { break }
-                } else if let entitiesInPage = page.element.entities {
-                    scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInPage))
-                } else { scores.append(0.0) }
-            }
-        case .title:
-            for note in notes.enumerated() {
-                if dataPointType == .note {
-                    if !changeContent && note.offset == index { break }
+        }
+        for page in pages.enumerated() {
+            if page.offset == index  && dataPointType == .page {
+                if changeContent {
                     scores.append(0.0)
-                } else if let entitiesInNoteTitle = note.element.entitiesInTitle {
-                    scores.append(jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInNoteTitle))
-                } else {
-                    scores.append(0.0)
-                }
-            }
-            for page in pages.enumerated() {
-                if page.offset == index && dataPointType == .page {
-                    if changeContent {
-                        scores.append(0.0)
-                    } else { break }
-                } else if let entitiesInPage = page.element.entitiesInTitle {
-                    scores.append(self.jaccardEntities(entitiesText1: entitiesInNewText, entitiesText2: entitiesInPage))
+                } else { break }
+            } else {
+                let entitiesInPage = (page.element.entities ?? EntitiesInText()) + (page.element.entitiesInTitle ?? EntitiesInText())
+                if !entitiesInPage.isEmpty {
+                    var commonDomainTokens: [String]?
+                    if let domain = domain,
+                       let otherDomain = page.element.domain,
+                       domain == otherDomain {
+                        commonDomainTokens = Array(Set(domain.components(separatedBy: CharacterSet(charactersIn: "./")) + otherDomain.components(separatedBy: CharacterSet(charactersIn: "./"))))
+                    }
+                    scores.append(self.jaccardEntities(entitiesText1: entitiesInNewDataPoint, entitiesText2: entitiesInPage, domainTokens: commonDomainTokens))
                 } else { scores.append(0.0) }
             }
         }
@@ -583,20 +571,22 @@ public class Cluster {
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
     // swiftlint:disable:next cyclomatic_complexity
     func entitiesProcess(index: Int, dataPointType: DataPoint, changeContent: Bool = false) throws {
-        var scores = [Double](repeating: 0.0, count: self.entitiesMatrix.matrix.rows)
         var content: String?
         var title: String?
+        var domain: String?
         switch dataPointType {
         case .page:
             content = self.pages[index].cleanedContent
             title = self.pages[index].title
+            domain = self.pages[index].domain
         case .note:
             content = self.notes[index].cleanedContent
             title = self.notes[index].title
         }
+        var entitiesInNewText = EntitiesInText()
+        var entitiesInNewTitle = EntitiesInText()
         if let content = content {
-            let entitiesInNewText = self.findEntitiesInText(text: content)
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewText, in: FindEntitiesIn.content, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ max($0.0, $0.1) })
+            entitiesInNewText = self.findEntitiesInText(text: content)
             switch dataPointType {
             case .page:
                 pages[index].entities = entitiesInNewText
@@ -605,8 +595,7 @@ public class Cluster {
             }
         }
         if let title = title {
-            let entitiesInNewTitle = findEntitiesInText(text: title)
-            scores = zip(scores, self.scoreEntitySimilarities(entitiesInNewText: entitiesInNewTitle, in: FindEntitiesIn.title, index: index, dataPointType: dataPointType, changeContent: changeContent)).map({ max($0.0, $0.1) })
+            entitiesInNewTitle = findEntitiesInText(text: title)
             switch dataPointType {
             case .page:
                 pages[index].entitiesInTitle = entitiesInNewTitle
@@ -614,6 +603,8 @@ public class Cluster {
                 notes[index].entitiesInTitle = entitiesInNewTitle
             }
         }
+        let entitiesInNewDataPoint = entitiesInNewText + entitiesInNewTitle
+        let scores = self.scoreEntitySimilaritiesInFullDataPoint(entitiesInNewDataPoint: entitiesInNewDataPoint, index: index, dataPointType: dataPointType, changeContent: changeContent, domain: domain)
 
         if changeContent {
             var indexToChange = index
@@ -627,30 +618,107 @@ public class Cluster {
         }
     }
 
+    /// Prepare entities of type "PersonName" to be compared
+    ///
+    /// - Parameters:
+    ///   - namesFound: An array of all the PersonName entities found in a text
+    /// - Returns: An array of names, each itself an array of all elements available in the name
+    func preparePersonName(namesFound: [String]) -> [[String]] {
+        let splitNames = namesFound.map { $0.lowercased().components(separatedBy: " ") }
+        var preparedNames = [[String]]()
+        for name in splitNames {
+            outerSwitch: switch name.count {
+            case 0:
+                break
+            case 1:
+                for otherName in splitNames where otherName != name {
+                    if otherName.contains(name[0]) {
+                        break outerSwitch
+                    }
+                }
+                preparedNames.append(name)
+            default:
+                preparedNames.append(name)
+            }
+        }
+        return preparedNames
+    }
+
+    /// A function to compare to sets of PersonalName arrays only
+    ///
+    /// - Parameters:
+    ///   - names1: An array of all the PersonalName entities found in the first data point
+    ///   - names2: An array of all the PersonalName entities found in the second data point
+    /// - Returns: A similarity score
+    func comparePersonNames(names1: [[String]], names2: [[String]]) -> Double {
+        var score = 0.0
+        for name1 in names1 {
+            if name1.count == 1  {
+                if names2.contains(name1) {
+                    score = max(pow(Double(name1[0].count) / 6.0, 2.0), 1.0)
+                } else {
+                    for name2 in names2 {
+                        if name2.contains(name1[0]) {
+                            score = max(pow(Double(name1[0].count) / 6.0, 2.0), 1.0)
+                            break
+                        }
+                    }
+                }
+            } else {
+                if names2.contains(name1) {
+                    score = 1
+                } //TODO: Add the case where one word is identical and the others are not
+            }
+        }
+        return score
+    }
+
+    /// Given a struct of entities that were find, this function removes those that match with tokens from the domain. It is called only when the domain is the same for two pages
+    ///
+    /// - Parameters:
+    ///   - namesFound: An array of all the PersonName entities found in a text
+    /// - Returns: An array of names, each itself an array of all elements available in the name
+    func removeDomainFromEntities(entitiesInText: EntitiesInText, domainTokens: [String]) -> EntitiesInText {
+        var newEntitiesInText = EntitiesInText()
+        let domainTokensProcessed = Set(domainTokens.map { $0.lowercased() })
+        for entityType in ["PersonalName", "PlaceName", "OrganizationName"] {
+            newEntitiesInText.entities[entityType] = (entitiesInText.entities[entityType] ?? []).filter { !domainTokensProcessed.contains($0) }
+        }
+        return newEntitiesInText
+    }
+
     /// Score the similarity between two EntitiesInText structs, using a modified Jaccard similarity
     ///
     /// - Parameters:
     ///   - entitiesInText1: The entities found in the first text
     ///   - entitiesInText1: The entities found in the first text
+    ///   - domainTokens: All the tokens in the domain, in case both data points have the same domain
     /// - Returns: The similarity between the two data points, between 0 and 1
-    func jaccardEntities(entitiesText1: EntitiesInText, entitiesText2: EntitiesInText) -> Double {
-        var totalEntities1 = [String]()
-        if entitiesText1.entities["PersonalName"]?.count ?? 0 > 0 {
-            totalEntities1 += (entitiesText1.entities["PersonalName"] ?? [String]()).joined(separator: " ").components(separatedBy: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
+    func jaccardEntities(entitiesText1: EntitiesInText, entitiesText2: EntitiesInText, domainTokens: [String]? = nil) -> Double {
+        var entitiesWithoutDomain1 = entitiesText1
+        var entitiesWithoutDomain2 = entitiesText2
+        if let domainTokens = domainTokens {
+            entitiesWithoutDomain1 = self.removeDomainFromEntities(entitiesInText: entitiesText1, domainTokens: domainTokens)
+            entitiesWithoutDomain2 = self.removeDomainFromEntities(entitiesInText: entitiesText2, domainTokens: domainTokens)
         }
-        var totalEntities2 = [String]()
-        if entitiesText2.entities["PersonalName"]?.count ?? 0 > 0 {
-            totalEntities2 += (entitiesText2.entities["PersonalName"] ?? [String]()).joined(separator: " ").components(separatedBy: " ").map { $0.trimmingCharacters(in: .punctuationCharacters) }
-        }
+        let preparedNames1 = self.preparePersonName(namesFound: entitiesWithoutDomain1.entities["PersonalName"] ?? [])
+        let preparedNames2 = self.preparePersonName(namesFound: entitiesWithoutDomain2.entities["PersonalName"] ?? [])
+        let scorePersonNames = self.comparePersonNames(names1: preparedNames1, names2: preparedNames2)
+        var numEntities1 = preparedNames1.count
+        var numEntities2 = preparedNames2.count
 
+        var totalEntitiesNoPerson1 = [String]()
+        var totalEntitiesNoPerson2 = [String]()
         for entityType in ["PlaceName", "OrganizationName"] {
-                totalEntities1 += (entitiesText1.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
-                totalEntities2 += (entitiesText2.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                totalEntitiesNoPerson1 += (entitiesWithoutDomain1.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                totalEntitiesNoPerson2 += (entitiesWithoutDomain2.entities[entityType] ?? [String]()).map { $0.trimmingCharacters(in: .punctuationCharacters) }
         }
 
-        let minimumEntities = min(Set(totalEntities1).count, Set(totalEntities2).count)
-        if minimumEntities > 0 {
-            return Double(Set(totalEntities1).intersection(Set(totalEntities2)).count) / Double(minimumEntities)
+        numEntities1 += Set(totalEntitiesNoPerson1).count
+        numEntities2 += Set(totalEntitiesNoPerson2).count
+        let maximumEntities = max(numEntities1, numEntities2)
+        if maximumEntities > 0 {
+            return (Double(Set(totalEntitiesNoPerson1).intersection(Set(totalEntitiesNoPerson2)).count) + scorePersonNames) / Double(maximumEntities)
         } else {
             return 0
         }
@@ -761,7 +829,7 @@ public class Cluster {
         case .fixedPagesTestNotes:
             let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.9, beta: self.beta)
-            let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.4, beta: self.beta)
+            let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.2, beta: self.beta)
             let adjacencyForPages = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
             self.adjacencyMatrix = adjacencyForPages
         }
@@ -981,6 +1049,7 @@ public class Cluster {
                         self.pagesWithContent += 1
                     }
                 }
+                self.pages[newIndex].domain = page.url?.host
             } else if let note = note {
                 // If the note does not contain enough text, abort
                 guard let content = note.originalContent,
@@ -1254,17 +1323,6 @@ public class Cluster {
                 }
             }
         }
-    }
-    
-    public func pagesToSave (pagesToKeep: [UUID]) throws -> [Page]? {
-        guard pagesToKeep.count > 0 else { return nil }
-        let pageListToKeep = pagesToKeep.map { pageToKeep -> Page? in
-            let pageIndex = self.findPageInPages(pageID: pageToKeep)
-            if let pageIndex = pageIndex {
-                return self.pages[pageIndex]
-            } else { return nil }
-        }.compactMap { $0 }
-        return pageListToKeep
     }
     // swiftlint:disable:next file_length
 }

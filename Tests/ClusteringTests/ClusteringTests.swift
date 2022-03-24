@@ -18,7 +18,7 @@ class ClusteringTests: XCTestCase {
         expect(cluster.numClustersCandidate) == .biggestDistanceInPercentages
         expect(cluster.weights[.navigation]) == 0.5
         expect(cluster.weights[.text]) == 0.9
-        expect(cluster.weights[.entities]) == 0.4
+        expect(cluster.weights[.entities]) == 0.2
     }
 
     /// Test adding and removing of data points from a (non-navigation) similarity matrix. For both addition and removal, test that all locations in the matrix (first, last, middle) work as expected
@@ -132,13 +132,13 @@ class ClusteringTests: XCTestCase {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else if embedders.1 == nil {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0, 0, 0, 0.6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.2963, 0, 0, 0, 0.2963, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 0, 0, 0, 0.9201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else if embedders.0 == nil {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.25, 0, 0, 0, 0.25, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else {
-                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.6, 0.6, 0.6667, 0, 0.6, 0, 0.4, 0.6, 0, 0.6, 0.4, 0, 0.8, 0, 0.6667, 0.6, 0.8, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.2963, 0.1667, 0.25, 0, 0.2963, 0, 0.2722, 0, 0, 0.1667, 0.2722, 0, 0.25, 0, 0.25, 0, 0.25, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 0, 0, 0, 0.9201, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             }
         }
@@ -648,6 +648,34 @@ class ClusteringTests: XCTestCase {
         expect(noteInformation) == expectedInformation
         let emptyInformation = cluster.getExportInformationForId(id: UUID())
         expect(emptyInformation) == InformationForId()
+    }
+
+    func testPreparePersonName() throws {
+        let cluster = Cluster()
+        let foundNames = ["Roger Federer", "Joe Biden", "joe", "Federer", "Nadal"]
+        let preparedNames = cluster.preparePersonName(namesFound: foundNames)
+        expect(Set(preparedNames)) == Set([["roger", "federer"], ["joe", "biden"], ["nadal"]])
+    }
+
+    func testComparePersonNames () throws {
+        let cluster = Cluster()
+        let preparedNames1 = [["roger", "federer"], ["joe", "biden"], ["nadal"]]
+        let preparedNames2 = [["roger", "federer"], ["rafael", "nadal"], ["novak", "djokovic"]]
+        let score = cluster.comparePersonNames(names1: preparedNames1, names2: preparedNames2)
+        expect(score) == 1.0
+    }
+
+    func testRemoveDomainFromEntities() throws {
+        var entitiesInText = EntitiesInText()
+        entitiesInText.entities["PersonalName"] = ["roger federer", "joe bien", "roger federer"]
+        entitiesInText.entities["OrganizationName"] = ["amazon", "wimbledon"]
+        entitiesInText.entities["PlaceName"] = ["wimbledon"]
+        let domainTokens = ["www", "amazon", "com"]
+        let cluster = Cluster()
+        let newEntities = cluster.removeDomainFromEntities(entitiesInText: entitiesInText, domainTokens: domainTokens)
+        expect(newEntities.entities["PersonalName"]) == ["roger federer", "joe bien", "roger federer"]
+        expect(newEntities.entities["OrganizationName"]) == ["wimbledon"]
+        expect(newEntities.entities["PlaceName"]) == ["wimbledon"]
     }
 
     func testCheckShortNote() throws {
