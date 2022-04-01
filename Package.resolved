@@ -2,6 +2,15 @@
   "object": {
     "pins": [
       {
+        "package": "CodableCSV",
+        "repositoryURL": "https://github.com/dehesa/CodableCSV.git",
+        "state": {
+          "branch": null,
+          "revision": "99ace2cfdfbc19108b529c021005fb57a460e715",
+          "version": "0.6.7"
+        }
+      },
+      {
         "package": "CwlCatchException",
         "repositoryURL": "https://github.com/mattgallagher/CwlCatchException.git",
         "state": {
@@ -53,15 +62,6 @@
           "branch": null,
           "revision": "82905286cc3f0fa8adc4674bf49437cab65a8373",
           "version": "1.1.1"
-        }
-      },
-      {
-        "package": "SwiftCSV",
-        "repositoryURL": "https://github.com/swiftcsv/SwiftCSV.git",
-        "state": {
-          "branch": null,
-          "revision": "039cc273dcc91f4c9d85e05a2514bbe63e7dde60",
-          "version": "0.6.1"
         }
       }
     ]

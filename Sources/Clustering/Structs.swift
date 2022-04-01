@@ -27,7 +27,7 @@ public struct Page {
         self.url = url
     }
 
-    var id: UUID
+    public var id: UUID
     var parentId: UUID?
     var title: String?
     var originalContent: [String]?
@@ -45,7 +45,8 @@ public struct ClusteringNote {
         self.title = title
         self.originalContent = content
     }
-    var id: UUID
+    
+    public var id: UUID
     var title: String?
     var originalContent: [String]?  // Text in the note.
                           // TODO: Should we save to source (copy-paste from a page, user input...)
