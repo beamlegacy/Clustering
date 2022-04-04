@@ -15,16 +15,21 @@ public struct InformationForId: Equatable {
     public var entitiesInTitle: EntitiesInText? = nil
     public var language: NLLanguage? = nil
     public var parentId: UUID? = nil
+    
+    public func isEmpty() -> Bool {
+        return title == nil && cleanedContent == nil
+    }
 }
 
 public struct Page {
-    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil) {
+    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
         self.originalContent = originalContent
         self.cleanedContent = cleanedContent
         self.url = url
+        self.language = language
     }
 
     public var id: UUID
@@ -40,10 +45,11 @@ public struct Page {
 }
 
 public struct ClusteringNote {
-    public init(id: UUID, title: String? = nil, content: [String]? = nil) {
+    public init(id: UUID, title: String? = nil, content: [String]? = nil, language: NLLanguage? = nil) {
         self.id = id
         self.title = title
         self.originalContent = content
+        self.language = language
     }
     
     public var id: UUID

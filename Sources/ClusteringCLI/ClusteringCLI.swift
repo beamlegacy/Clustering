@@ -10,6 +10,7 @@ import Foundation
 import Clustering
 import SwiftCSV
 import CodableCSV
+import NaturalLanguage
 
 @main
 struct ClusteringCLI: ParsableCommand {
@@ -50,20 +51,20 @@ extension ClusteringCLI {
                 }
             }
             if row["noteName"] != "<???>" {
-                if let noteId = row["Id"], let title = row["title"], let content = row["cleanedContent"] {
+                if let noteId = row["Id"], let title = row["title"], let content = row["cleanedContent"], let language = row["language"] {
                     guard let convertedPageId = UUID(uuidString: noteId) else {
                         return
                     }
-                    notes.append(ClusteringNote(id: convertedPageId, title: title, content: [content]))
+                    notes.append(ClusteringNote(id: convertedPageId, title: title.replacingOccurrences(of: " and some text", with: ""), content: [content], language: NLLanguage.init(rawValue: language)))
                 }
             } else {
-                if let pageId = row["Id"], let parentId = row["parentId"], let title = row["title"], let cleanedContent = row["cleanedContent"], let url = row["url"] {
+                if let pageId = row["Id"], let parentId = row["parentId"], let title = row["title"], let cleanedContent = row["cleanedContent"], let url = row["url"], let language = row["language"] {
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
                     let convertedParentId = parentId == "<???>" ? nil: UUID(uuidString: parentId)
                     
-                    pages.append(Page(id: convertedPageId, parentId: convertedParentId, url: URL(string: url), title: title, cleanedContent: cleanedContent))
+                    pages.append(Page(id: convertedPageId, parentId: convertedParentId, url: URL(string: url), title: title.replacingOccurrences(of: " and some text", with: ""), cleanedContent: cleanedContent, language: NLLanguage.init(rawValue: language)))
                 }
             }
         }
@@ -78,6 +79,7 @@ extension ClusteringCLI {
                         ()
                     case .success(let result):
                         clusteredNoteIds = result.noteGroups
+                        clusteredPageIds = result.pageGroups
                     }
                     semaphore.signal()
                 })
@@ -90,6 +92,7 @@ extension ClusteringCLI {
                     case .failure:
                         ()
                     case .success(let result):
+                        clusteredNoteIds = result.noteGroups
                         clusteredPageIds = result.pageGroups
                     }
                     semaphore.signal()
@@ -102,39 +105,37 @@ extension ClusteringCLI {
         
         CFRunLoopRun()
         
-        for note in notes.enumerated() {
-            if findGroupForID(id: note.element.id, groups: clusteredNoteIds) == -1 {
-                clusteredNoteIds.insert([], at: note.offset)
-            }
-        }
-        
-        for page in pages.enumerated() {
-            if findGroupForID(id: page.element.id, groups: clusteredPageIds) == -1 {
-                clusteredPageIds.insert([], at: page.offset)
-            }
-        }
-        
         var outputCsv: [[String]] = [csvFile.headers]
-        let allGroups = clusteredNoteIds + clusteredPageIds
         var groupId2colours: [String:String] = [:]
+        var emptyClusters = 0
         
         if let columns = csvFile[column: "Id"] {
             for rowId in columns.enumerated() {
                 if let convertedId = UUID(uuidString: rowId.element) {
                     let info = cluster.getExportInformationForId(id: convertedId)
                     
-                    if info.title == nil {
+                    if info.isEmpty() {
                         outputCsv.append(csvFile[rowId.offset])
+                        emptyClusters += 1
                     } else {
                         var newRow: [String] = []
                         
                         newRow.append(csvFile[rowId.offset][0])
                         newRow.append(csvFile[rowId.offset][1])
                         
-                        let groupId = findGroupForID(id: convertedId, groups: allGroups)
+                        var navigationGroupId = findGroupForID(id: convertedId, groups: clusteredPageIds)
+                        var groupId = -1
                         
+                        if navigationGroupId != -1 {
+                            groupId = navigationGroupId + emptyClusters
+                        } else {
+                            groupId = findGroupForID(id: convertedId, groups: clusteredNoteIds)
+                            navigationGroupId = -1
+                        }
+                        
+
                         newRow.append(String(groupId))
-                        newRow.append(String(findGroupForID(id: convertedId, groups: clusteredPageIds)))
+                        newRow.append(String(navigationGroupId))
                         
                         if csvFile[rowId.offset][4] == "<???>" && csvFile[rowId.offset][5] == "<???>" {
                             newRow.append(csvFile[rowId.offset][4])
@@ -167,27 +168,39 @@ extension ClusteringCLI {
                                 newRow.append(csvFile[rowId.offset][5])
                             }
                         }
+
+                        newRow.append(info.title ?? csvFile[rowId.offset][6])
+                        newRow.append(info.cleanedContent ?? csvFile[rowId.offset][7])
                         
-                        if let title = info.title, let cleanedContent = info.cleanedContent, let entities = info.entitiesInText, let entitiesInTitle = info.entitiesInTitle, let language = info.language, let parentId = info.parentId {
-                            newRow.append(title)
-                            newRow.append(cleanedContent)
-                            newRow.append(entities.description)
+                        if let entitiesInText = info.entitiesInText {
+                            newRow.append(entitiesInText.description)
+                        } else {
+                            newRow.append(csvFile[rowId.offset][8])
+                        }
+                        
+                        if let entitiesInTitle = info.entitiesInTitle {
                             newRow.append(entitiesInTitle.description)
+                        } else {
+                            newRow.append(csvFile[rowId.offset][9])
+                        }
+                        
+                        if let language = info.language {
                             newRow.append(language.rawValue)
-                            newRow.append(csvFile[rowId.offset][11])
-                            newRow.append(convertedId.description)
+                        } else {
+                            newRow.append(csvFile[rowId.offset][10])
+                        }
+                        
+                        newRow.append(csvFile[rowId.offset][11])
+                        newRow.append(convertedId.description)
+                        
+                        if let parentId = info.parentId {
                             newRow.append(parentId.description)
                         } else {
-                            newRow.append(csvFile[rowId.offset][6])
-                            newRow.append(csvFile[rowId.offset][7])
-                            newRow.append(csvFile[rowId.offset][8])
-                            newRow.append(csvFile[rowId.offset][9])
-                            newRow.append(csvFile[rowId.offset][10])
-                            newRow.append(csvFile[rowId.offset][11])
-                            newRow.append(csvFile[rowId.offset][12])
                             newRow.append(csvFile[rowId.offset][13])
                         }
+                        
                         assert(newRow.count == csvFile[rowId.offset].count)
+                        
                         outputCsv.append(newRow)
                     }
                 }
