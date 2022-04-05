@@ -5,6 +5,8 @@ default:
   - pwd
   - unset cd
   - eval "$(rbenv init -)"
+  - scripts/install_xcode.sh
+
 
 stages:
   - test
