@@ -862,7 +862,8 @@ public class Cluster {
     public func removeNote(noteId: UUID) {
         self.additionsInQueue += 1
         additionQueue.async {
-            if let noteIndex = self.findNoteInNotes(noteID: noteId) {
+            if let noteIndex = self.findNoteInNotes(noteID: noteId),
+               self.adjacencyMatrix.rows > 1 {
                 do {
                     try self.navigationMatrix.removeDataPoint(index: noteIndex)
                     try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
@@ -892,7 +893,7 @@ public class Cluster {
                 ranking = rankingWithoutActive
             }
         }
-        while pagesRemoved < numPagesToRemove {
+        while pagesRemoved < numPagesToRemove && self.navigationMatrix.matrix.rows > 1 {
             if let pageToRemove = ranking.first {
                 if let pageIndexToRemove = self.findPageInPages(pageID: pageToRemove) {
                     try self.navigationMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
