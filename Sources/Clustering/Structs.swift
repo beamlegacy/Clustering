@@ -30,9 +30,10 @@ public struct InformationForId: Equatable {
     public var language: NLLanguage? = nil
     public var parentId: UUID? = nil
     
-    public func isEmpty() -> Bool {
-        return title == nil && cleanedContent == nil
+    public var isEmpty: Bool {
+        title == nil && cleanedContent == nil
     }
+
 }
 
 public struct Page {

@@ -8,7 +8,6 @@
 import ArgumentParser
 import Foundation
 import Clustering
-import SwiftCSV
 import CodableCSV
 import NaturalLanguage
 
@@ -69,7 +68,7 @@ extension ClusteringCLI {
             }
         }
         
-        DispatchQueue.global().async {
+        DispatchQueue.global(qos: .userInitiated).async {
             let semaphore = DispatchSemaphore(value: 0)
             
             for note in notes {
@@ -114,7 +113,7 @@ extension ClusteringCLI {
                 if let convertedId = UUID(uuidString: rowId.element) {
                     let info = cluster.getExportInformationForId(id: convertedId)
                     
-                    if info.isEmpty() {
+                    if info.isEmpty {
                         outputCsv.append(csvFile[rowId.offset])
                         emptyClusters += 1
                     } else {
