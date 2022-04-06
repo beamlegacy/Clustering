@@ -11,7 +11,7 @@ import Clustering
 import CodableCSV
 import NaturalLanguage
 
-@main
+
 struct ClusteringCLI: ParsableCommand {
     @Option(help: "The CSV file to inject in the Clustering package.")
     var inputFile: String
@@ -211,3 +211,5 @@ extension ClusteringCLI {
         try CSVWriter.encode(rows: outputCsv, into: URL(fileURLWithPath: outputFile), append: false)
     }
 }
+
+ClusteringCLI.main()
