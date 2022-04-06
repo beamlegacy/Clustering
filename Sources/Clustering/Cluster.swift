@@ -137,8 +137,7 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.4, noteContentThreshold: Int = 100, useMainQueue: Bool = true) {
-
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100, useMainQueue: Bool = true) {
         // This way we can define the main queue we want to use. In an app, the mainQueue to allow UI update. In other contexts, we do in background
         let otherQueue = DispatchQueue.init(label: "FakeMain")
         mainQueue = useMainQueue ? DispatchQueue.main : otherQueue
