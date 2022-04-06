@@ -862,15 +862,16 @@ public class Cluster {
     public func removeNote(noteId: UUID) {
         self.additionsInQueue += 1
         additionQueue.async {
-            if let noteIndex = self.findNoteInNotes(noteID: noteId),
-               self.adjacencyMatrix.rows > 1 {
-                do {
-                    try self.navigationMatrix.removeDataPoint(index: noteIndex)
-                    try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
-                    try self.entitiesMatrix.removeDataPoint(index: noteIndex)
-                    self.notes.remove(at: noteIndex)
-                    self.createAdjacencyMatrix()
-                } catch { } // This is pretty bad
+            if let noteIndex = self.findNoteInNotes(noteID: noteId) {
+                if self.adjacencyMatrix.rows > 1 {
+                    do {
+                        try self.navigationMatrix.removeDataPoint(index: noteIndex)
+                        try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
+                        try self.entitiesMatrix.removeDataPoint(index: noteIndex)
+                        self.createAdjacencyMatrix()
+                    } catch { } // This is pretty bad
+                }
+                self.notes.remove(at: noteIndex)
             }
             DispatchQueue.main.async {
                 self.additionsInQueue -= 1
