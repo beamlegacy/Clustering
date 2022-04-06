@@ -88,6 +88,7 @@ public class Cluster {
 
     let additionQueue = DispatchQueue(label: "additionQueue")
     let clusteringQueue = DispatchQueue(label: "clusteringQueue")
+    let mainQueue: DispatchQueue
     var additionsInQueue = 0
     var pages = [Page]()
     var notes = [ClusteringNote]()
@@ -136,7 +137,11 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100) {
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100, useMainQueue: Bool = true) {
+        // This way we can define the main queue we want to use. In an app, the mainQueue to allow UI update. In other contexts, we do in background
+        let otherQueue = DispatchQueue.init(label: "FakeMain")
+        mainQueue = useMainQueue ? DispatchQueue.main : otherQueue
+        
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
@@ -873,7 +878,7 @@ public class Cluster {
                 }
                 self.notes.remove(at: noteIndex)
             }
-            DispatchQueue.main.async {
+            self.mainQueue.async {
                 self.additionsInQueue -= 1
             }
         }
@@ -1101,14 +1106,14 @@ public class Cluster {
         additionQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
-                DispatchQueue.main.async {
+                self.mainQueue.async {
                     self.additionsInQueue -= 1
                     completion(.failure(AdditionError.moreThanOneObjectToAdd))
                 }
                 return
             }
             if page == nil && note == nil {
-                DispatchQueue.main.async {
+                self.mainQueue.async {
                     self.additionsInQueue -= 1
                     completion(.failure(AdditionError.noObjectsToAdd))
                 }
@@ -1122,7 +1127,7 @@ public class Cluster {
                 if let note = note {
                     self.skippedNotes.append(note)
                 }
-                DispatchQueue.main.async {
+                self.mainQueue.async {
                     self.additionsInQueue -= 1
                     completion(.failure(AdditionError.abortingAdditionDuringClustering))
                 }
@@ -1133,7 +1138,7 @@ public class Cluster {
                 do {
                     try self.remove(ranking: ranking, activeSources: activeSources)
                 } catch let error {
-                    DispatchQueue.main.async {
+                    self.mainQueue.async {
                         completion(.failure(error))
                     }
                 }
@@ -1143,7 +1148,7 @@ public class Cluster {
                 try self.updateSubMatrices(page: page, note: note, replaceContent: replaceContent)
                 self.createAdjacencyMatrix()
             } catch {
-                DispatchQueue.main.async {
+                self.mainQueue.async {
                     self.additionsInQueue -= 1
                     completion(.failure(error))
                 }
@@ -1153,7 +1158,7 @@ public class Cluster {
                 self.askForNotes = true
             }
             
-            DispatchQueue.main.async {
+            self.mainQueue.async {
                 self.additionsInQueue -= 1
                 if self.additionsInQueue == 0 {
                     self.isClustering = true
@@ -1164,7 +1169,7 @@ public class Cluster {
                             predictedClusters = try self.spectralClustering()
                         } catch let error {
                             completion(.failure(error))
-                            DispatchQueue.main.async {
+                            self.mainQueue.async {
                                 self.isClustering = false
                             }
                             return
@@ -1174,7 +1179,7 @@ public class Cluster {
                         let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
                         let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
                         
-                        DispatchQueue.main.async {
+                        self.mainQueue.async {
                             self.isClustering = false
                             if self.askForNotes {
                                 completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .addNotes, similarities: similarities)))
@@ -1293,14 +1298,14 @@ public class Cluster {
             do {
                 try self.performCandidateChange()
             } catch {
-                DispatchQueue.main.async {
+                self.mainQueue.async {
                     self.additionsInQueue -= 1
                     completion(.failure(CandidateError.unknownCandidate))
                 }
                 return
             }
             
-            DispatchQueue.main.async {
+            self.mainQueue.async {
                 self.additionsInQueue -= 1
                 if self.additionsInQueue == 0 {
                     self.clusteringQueue.async {
@@ -1316,7 +1321,7 @@ public class Cluster {
                         let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
                         let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
                         
-                        DispatchQueue.main.async {
+                        self.mainQueue.async {
                             completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
                         }
                     }

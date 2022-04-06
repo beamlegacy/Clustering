@@ -4,7 +4,11 @@ default:
   - date
   - pwd
   - unset cd
+  - direnv allow
+  - eval "$(direnv export bash)"
   - eval "$(rbenv init -)"
+  - scripts/install_xcode.sh
+
 
 stages:
   - test
