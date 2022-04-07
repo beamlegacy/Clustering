@@ -108,7 +108,7 @@ extension ClusteringCLI {
         var groupId2colours: [String:String] = [:]
         var emptyClusters = 0
         
-        if let columns = csvFile[column: "Id"] {
+        if let columns = csvFile[column: "id"] {
             for rowId in columns.enumerated() {
                 if let convertedId = UUID(uuidString: rowId.element) {
                     let info = cluster.getExportInformationForId(id: convertedId)
@@ -205,7 +205,7 @@ extension ClusteringCLI {
                 }
             }
         }
-        
+
         assert(outputCsv.count == csvFile.count + 1)
 
         try CSVWriter.encode(rows: outputCsv, into: URL(fileURLWithPath: outputFile), append: false)
