@@ -12,6 +12,18 @@ import CodableCSV
 import NaturalLanguage
 
 
+struct StandardErrorOutputStream: TextOutputStream {
+    let stderr = FileHandle.standardError
+
+    func write(_ string: String) {
+        guard let data = string.data(using: .utf8) else {
+            fatalError() // encoding failure: handle as you wish
+        }
+        stderr.write(data)
+    }
+}
+
+
 struct ClusteringCLI: ParsableCommand {
     @Option(help: "The CSV file to inject in the Clustering package.")
     var inputFile: String
@@ -42,7 +54,7 @@ extension ClusteringCLI {
         var id2colours: [String: String] = [:]
         
         for row in csvFile.records {
-            if let id = row["Id"], let tabColouringGroupId = row["tabColouringGroupId"], let userCorrectionGroupId = row["userCorrectionGroupId"] {
+            if let id = row["id"], let tabColouringGroupId = row["tabColouringGroupId"], let userCorrectionGroupId = row["userCorrectionGroupId"] {
                 if tabColouringGroupId != "<???>" {
                     if userCorrectionGroupId == "<???>" {
                         id2colours[id] = tabColouringGroupId
@@ -50,14 +62,14 @@ extension ClusteringCLI {
                 }
             }
             if row["noteName"] != "<???>" {
-                if let noteId = row["Id"], let title = row["title"], let content = row["cleanedContent"], let language = row["language"] {
+                if let noteId = row["id"], let title = row["title"], let content = row["cleanedContent"], let language = row["language"] {
                     guard let convertedPageId = UUID(uuidString: noteId) else {
                         return
                     }
                     notes.append(ClusteringNote(id: convertedPageId, title: title.replacingOccurrences(of: " and some text", with: ""), content: [content], language: NLLanguage.init(rawValue: language)))
                 }
             } else {
-                if let pageId = row["Id"], let parentId = row["parentId"], let title = row["title"], let cleanedContent = row["cleanedContent"], let url = row["url"], let language = row["language"] {
+                if let pageId = row["id"], let parentId = row["parentId"], let title = row["title"], let cleanedContent = row["cleanedContent"], let url = row["url"], let language = row["language"] {
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
@@ -72,6 +84,8 @@ extension ClusteringCLI {
             let semaphore = DispatchSemaphore(value: 0)
             
             for note in notes {
+                print("Add Note: " + note.id.description)
+                fflush(stdout)
                 cluster.add(note: note, ranking: nil, completion: { result in
                     switch result {
                     case .failure:
@@ -86,6 +100,8 @@ extension ClusteringCLI {
             }
             
             for page in pages {
+                print("Add Page: " + page.id.description)
+                fflush(stdout)
                 cluster.add(page: page, ranking: nil, completion: { result in
                     switch result {
                     case .failure:
@@ -198,17 +214,29 @@ extension ClusteringCLI {
                             newRow.append(csvFile[rowId.offset][13])
                         }
                         
-                        assert(newRow.count == csvFile[rowId.offset].count)
+                        if newRow.count != csvFile[rowId.offset].count {
+                            print("Err: \(newRow.count) is different from \(csvFile[rowId.offset].count)")
+                            fflush(stdout)
+                            return
+                        }
                         
                         outputCsv.append(newRow)
                     }
                 }
             }
         }
-
-        assert(outputCsv.count == csvFile.count + 1)
-
-        try CSVWriter.encode(rows: outputCsv, into: URL(fileURLWithPath: outputFile), append: false)
+        
+        if outputCsv.count == csvFile.count + 1 {
+            do {
+                try CSVWriter.encode(rows: outputCsv, into: URL(fileURLWithPath: outputFile), append: false)
+            } catch let error {
+                var errStream = StandardErrorOutputStream()
+                print("\(error)", to: &errStream)
+            }
+        } else {
+            print("Err: \(outputCsv.count) is different from \(csvFile.count)")
+            fflush(stdout)
+        }
     }
 }
 
