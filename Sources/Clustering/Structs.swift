@@ -37,7 +37,7 @@ public struct InformationForId: Equatable {
 }
 
 public struct Page {
-    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil) {
+    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
@@ -45,6 +45,8 @@ public struct Page {
         self.cleanedContent = cleanedContent
         self.url = url
         self.language = language
+        self.beWith = beWith
+        self.beApart = beApart
     }
 
     public var id: UUID
@@ -58,6 +60,8 @@ public struct Page {
     var entitiesInTitle: EntitiesInText?
     var url: URL?
     var domain: String?
+    var beWith: [UUID]?
+    var beApart: [UUID]?
 }
 
 public struct ClusteringNote {
