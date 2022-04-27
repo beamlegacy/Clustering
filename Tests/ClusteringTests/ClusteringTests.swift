@@ -4,6 +4,7 @@ import LASwift
 import NaturalLanguage
 @testable import Clustering
 import Accelerate
+import Clustering
 
 // swiftlint:disable:next type_body_length
 class ClusteringTests: XCTestCase {
@@ -235,12 +236,14 @@ class ClusteringTests: XCTestCase {
         wait(for: [expectation], timeout: 1)
     }
 
-    /// Test that when a ranking is sent along with  a request to 'add', the 3 least ranked pages are removed
+    /// Test that when a ranking is sent along with  a request to 'add', the 3 least ranked pages are removed.
+    /// Also test different aspcets of beToghether and beApart matrices
     func testPageRemoval() throws {
         let cluster = Cluster()
         cluster.noteContentThreshold = 3
         // Here we don't want to test that notes with little content are not added
         let expectation = self.expectation(description: "Add page expectation")
+        let beTogetherExpectation = self.expectation(description: "Be together expectation")
         var UUIDs: [UUID] = []
         for _ in 0...6 {
             UUIDs.append(UUID())
@@ -291,6 +294,32 @@ class ClusteringTests: XCTestCase {
         expect(cluster.adjacencyMatrix.rows) == 5 // 4 pages and one note
         expect(cluster.pages.count) == 4
         expect(cluster.notes.count) == 1
+        expect(cluster.beTogetherMatrix.matrix.flat) == [Double](repeating: 0.0, count: 25)
+        expect(cluster.beApartMatrix.matrix) == ones(5, 5) - diag([1.0, 1.0, 1.0, 1.0, 1.0])
+
+        var pageBeTogether = Page(id: UUIDs[0])
+        pageBeTogether.beWith = [UUIDs[3]]
+        pageBeTogether.beApart = [UUIDs[5]]
+        cluster.add(page: pageBeTogether, ranking: nil, completion: { result in
+            switch result {
+            case .failure(let error):
+                if error as! Cluster.AdditionError != .skippingToNextAddition {
+                    XCTFail(error.localizedDescription)
+                }
+            case .success(let result):
+                _ = result
+            }
+            beTogetherExpectation.fulfill()
+        })
+        wait(for: [beTogetherExpectation], timeout: 1)
+        var beWithMatrixCheck = [Double](repeating: 0.0, count: 25)
+        beWithMatrixCheck[7] = 1.0
+        beWithMatrixCheck[11] = 1.0
+        var beApartMatrixCheck = (ones(5, 5) - diag([1.0, 1.0, 1.0, 1.0, 1.0])).flat
+        beApartMatrixCheck[8] = 0.0
+        beApartMatrixCheck[16] = 0.0
+        expect(cluster.beTogetherMatrix.matrix.flat) == beWithMatrixCheck
+        expect(cluster.beApartMatrix.matrix.flat) == beApartMatrixCheck
     }
 
     /// A page that was removed from the matrices is visited again by the user. Test that it is readded correctly and removed from attachedPages
@@ -348,6 +377,8 @@ class ClusteringTests: XCTestCase {
         wait(for: [secondExpectation], timeout: 1)
         expect(cluster.pages.count) == 5
         expect(cluster.pages[4].id) == UUIDs[3]
+        expect(cluster.beTogetherMatrix.matrix.flat) == [Double](repeating: 0.0, count: 25)
+        expect(cluster.beApartMatrix.matrix) == ones(5, 5) - diag([1.0, 1.0, 1.0, 1.0, 1.0])
     }
 
     /// When removing a page from the matrix, chage that if the most similar data point to that page is a note, that does not create a problem
@@ -697,6 +728,10 @@ class ClusteringTests: XCTestCase {
         })
         wait(for: [expectation], timeout: 1)
         expect(myFailure ?? "") == "The operation couldn’t be completed. (Clustering.Cluster.AdditionError error 2.)"
+    }
+
+    func testbeWithAndBeApart() throws {
+
     }
     // swiftlint:disable:next file_length
 }

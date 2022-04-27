@@ -97,6 +97,8 @@ public class Cluster {
     var navigationMatrix = NavigationMatrix()
     var textualSimilarityMatrix = SimilarityMatrix()
     var entitiesMatrix = SimilarityMatrix()
+    var beTogetherMatrix = SimilarityMatrix()
+    var beApartMatrix = SimilarityMatrix()
     let tagger = NLTagger(tagSchemes: [.nameType])
     let entityOptions: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
     let entityTags: [NLTag] = [.personalName, .placeName, .organizationName]
@@ -830,7 +832,7 @@ public class Cluster {
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: self.weights[.text] ?? 0.5, beta: self.beta)
             let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: self.weights[.entities] ?? 0.5, beta: self.beta)
 //            self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
-            self .adjacencyMatrix = textSigmoidMatrix .* self.navigationMatrix.matrix + entitySigmoidMatrix
+            self .adjacencyMatrix = (textSigmoidMatrix .* self.navigationMatrix.matrix + entitySigmoidMatrix) .* self.beApartMatrix.matrix + self.beTogetherMatrix.matrix
         case .fixedPagesTestNotes:
             let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.9, beta: self.beta)
@@ -873,6 +875,8 @@ public class Cluster {
                         try self.navigationMatrix.removeDataPoint(index: noteIndex)
                         try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
                         try self.entitiesMatrix.removeDataPoint(index: noteIndex)
+                        try self.beTogetherMatrix.removeDataPoint(index: noteIndex)
+                        try self.beApartMatrix.removeDataPoint(index: noteIndex)
                         self.createAdjacencyMatrix()
                     } catch { } // This is pretty bad
                 }
@@ -905,6 +909,8 @@ public class Cluster {
                     try self.navigationMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.textualSimilarityMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     try self.entitiesMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
+                    try self.beTogetherMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
+                    try self.beApartMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
                     self.pages.remove(at: pageIndexToRemove)
                     pagesRemoved += 1
                     ranking = Array(ranking.dropFirst())
@@ -977,6 +983,23 @@ public class Cluster {
         return similarities
     }
 
+    /// A simple function to make sure the matrices beTogetherMatrix and beApartMatrix follow in size the other matrices. Note that here the matrices only grow (beTogether as all 0s and beApart as all 1s except for the diagonal). Real information regarding beTogether and beApart is added elsewhere
+    ///
+    /// - Parameters:
+    ///   - dataPointType: Is the data point being added a note or a page
+    func addToBeWithAndBeApart(dataPointType: DataPoint) throws {
+        if self.pages.count + self.notes.count > 1 {
+            let scoresBeWith = [Double](repeating: 0.0, count: self.beTogetherMatrix.matrix.rows)
+            let scoresBeApart = [Double](repeating: 1.0, count: self.beTogetherMatrix.matrix.rows)
+            do {
+                try self.beTogetherMatrix.addDataPoint(similarities: scoresBeWith, type: dataPointType, numExistingNotes: max(self.notes.count - 1, 0), numExistingPages: self.pages.count)
+                try self.beApartMatrix.addDataPoint(similarities: scoresBeApart, type: dataPointType, numExistingNotes: max(self.notes.count - 1, 0), numExistingPages: self.pages.count)
+            } catch let error {
+                throw error
+            }
+        }
+    }
+
     /// A function to add a data point to all sub matrices (navigation, textual and entity-based)
     ///
     /// - Parameters:
@@ -1016,6 +1039,28 @@ public class Cluster {
                 // Page exists, new parenting relation
                 self.navigationMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 1.0
                 self.navigationMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 1.0
+            }
+            if let beWith = page.beWith {
+                for parentId in beWith {
+                    if let parent_index = self.findPageInPages(pageID: parentId),
+                       parent_index != id_index {
+                        self.beApartMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 1.0
+                        self.beApartMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 1.0
+                        self.beTogetherMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 1.0
+                        self.beTogetherMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 1.0
+                    }
+                }
+            }
+            if let beApart = page.beApart {
+                for parentId in beApart {
+                    if let parent_index = self.findPageInPages(pageID: parentId),
+                       parent_index != id_index {
+                        self.beApartMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 0.0
+                        self.beApartMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 0.0
+                        self.beTogetherMatrix.matrix[id_index + self.notes.count, parent_index + self.notes.count] = 0.0
+                        self.beTogetherMatrix.matrix[parent_index + self.notes.count, id_index + self.notes.count] = 0.0
+                    }
+                }
             }
             // Updating existing note
         } else if let note = note,
@@ -1079,6 +1124,7 @@ public class Cluster {
                 try self.navigationMatrix.addDataPoint(similarities: navigationSimilarities, type: dataPointType, numExistingNotes: self.notes.count - Int(truncating: NSNumber(value: dataPointType == .note)), numExistingPages: self.pages.count - Int(truncating: NSNumber(value: dataPointType == .page)))
                 try self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
                 try self.entitiesProcess(index: newIndex, dataPointType: dataPointType)
+                try self.addToBeWithAndBeApart(dataPointType: dataPointType)
             } catch let error {
                 throw error
             }
