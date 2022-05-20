@@ -13,7 +13,7 @@ let package = Package(
         .library(
             name: "Clustering",
             targets: ["Clustering"]),
-        .executable(name: "clustering", targets: ["ClusteringCLI"])
+        .executable(name: "clustering-cli", targets: ["ClusteringCLI"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -26,9 +26,17 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
+        .binaryTarget(name: "tvmruntime", path: "tvmruntime.xcframework"),
+        .binaryTarget(name: "sentencepiece", path: "sentencepiece.xcframework"),
+        .target(
+            name: "CClustering",
+            dependencies: ["tvmruntime", "sentencepiece"]
+        ),
         .target(
             name: "Clustering",
-            dependencies: ["LASwift"]),
+            dependencies: ["LASwift", "CClustering"],
+            resources: [.copy("Resources")]
+        ),
         .executableTarget(
             name: "ClusteringCLI",
             dependencies: [
@@ -38,6 +46,8 @@ let package = Package(
         ),
         .testTarget(
             name: "ClusteringTests",
-            dependencies: ["Clustering", "Nimble"])
-    ]
+            dependencies: ["Clustering", "Nimble", "tvmruntime", "sentencepiece"]
+        )
+    ],
+    cxxLanguageStandard: CXXLanguageStandard.cxx14
 )

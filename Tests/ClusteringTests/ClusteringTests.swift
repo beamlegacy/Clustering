@@ -718,16 +718,18 @@ class ClusteringTests: XCTestCase {
             switch result {
             case .failure(let error):
                 if error as! Cluster.AdditionError == .notEnoughTextInNote {
-                    myFailure = error.localizedDescription
+                    myFailure = "\(error)"
                 }
                 expectation.fulfill()
             case .success(let result):
+                print(result)
                 _ = result
                 expectation.fulfill()
             }
         })
         wait(for: [expectation], timeout: 1)
-        expect(myFailure ?? "") == "The operation couldn’t be completed. (Clustering.Cluster.AdditionError error 2.)"
+        expect(myFailure ?? "") == "notEnoughTextInNote"
+        
     }
 
     func testbeWithAndBeApart() throws {

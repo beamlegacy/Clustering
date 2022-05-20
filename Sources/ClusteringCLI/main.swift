@@ -10,6 +10,7 @@ import Foundation
 import Clustering
 import CodableCSV
 import NaturalLanguage
+import CClustering
 
 
 struct StandardErrorOutputStream: TextOutputStream {
@@ -43,9 +44,39 @@ extension ClusteringCLI {
         return -1
     }
     
+    func allContentsOfDirectory(atPath path: String) -> [String] {
+        var paths = [String]()
+        do {
+            let url = URL(fileURLWithPath: path)
+            let contents = try FileManager.default.contentsOfDirectory(atPath: path)
+            
+            for content in contents {
+                let contentUrl = url.appendingPathComponent(content)
+                if contentUrl.hasDirectoryPath {
+                    paths.append(contentsOf: allContentsOfDirectory(atPath: contentUrl.path))
+                }
+                else {
+                    paths.append(contentUrl.path)
+                }
+            }
+        }
+        catch {}
+        return paths
+    }
+    
     func run() throws {
-        let cluster = Cluster(useMainQueue: false)
-        var pages: [Page] = []
+        //let cluster = Cluster(useMainQueue: false)
+        let modelinf = createModelInferenceWrapper(UnsafePointer(strdup("minilm_multilingual.dylib")), UnsafePointer(strdup("sentencepiece.bpe.model")))
+        var model_result = ModelInferenceResult()
+        let CText = strdup("oerig ozerihjgoig oqijhrg oqzirh go")
+        let ret = doModelInference(modelinf, UnsafePointer(CText), &model_result)
+        
+        if ret == 0 {
+            let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
+            let dvector = vector.map{Double($0)}
+            print(dvector)
+        }
+        /*var pages: [Page] = []
         var notes: [ClusteringNote] = []
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
@@ -236,7 +267,7 @@ extension ClusteringCLI {
         } else {
             print("Err: \(outputCsv.count) is different from \(csvFile.count)")
             fflush(stdout)
-        }
+        }*/
     }
 }
 

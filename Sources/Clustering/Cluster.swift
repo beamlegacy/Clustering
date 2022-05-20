@@ -2,6 +2,8 @@ import LASwift
 import Foundation
 import NaturalLanguage
 import Accelerate
+import CClustering
+
 
 // swiftlint:disable:next type_body_length
 public class Cluster {
@@ -112,6 +114,7 @@ public class Cluster {
     var askForNotes = false
     var skippedPages = [Page]()
     var skippedNotes = [ClusteringNote]()
+    var modelinf: UnsafeMutableRawPointer! = nil
     
     var isClustering: Bool = false {
         didSet {
@@ -142,8 +145,20 @@ public class Cluster {
     public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100, useMainQueue: Bool = true) {
         // This way we can define the main queue we want to use. In an app, the mainQueue to allow UI update. In other contexts, we do in background
         let otherQueue = DispatchQueue.init(label: "FakeMain")
-        mainQueue = useMainQueue ? DispatchQueue.main : otherQueue
         
+        if let modelURL = Bundle.module.url(forResource: "minilm_multilingual", withExtension: "dylib"),
+           let tokenizerModelURL = Bundle.module.url(forResource: "sentencepiece", withExtension: "bpe.model") {
+            let CModelPath = strdup(modelURL.path)
+            let CTokenizerModelPath = strdup(tokenizerModelURL.path)
+            
+            modelinf = createModelInferenceWrapper(UnsafePointer(CModelPath), UnsafePointer(CTokenizerModelPath))
+        } else {
+            let CModelPath = strdup("/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib")
+            let CTokenizerModelPath = strdup("/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model")
+            modelinf = createModelInferenceWrapper(UnsafePointer(CModelPath), UnsafePointer(CTokenizerModelPath))
+        }
+        
+        mainQueue = useMainQueue ? DispatchQueue.main : otherQueue
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
@@ -154,6 +169,10 @@ public class Cluster {
         } catch {
             fatalError()
         }
+    }
+    
+    deinit {
+        removeModelInferenceWrapper(modelinf)
     }
 
     public class SimilarityMatrix {
@@ -393,12 +412,23 @@ public class Cluster {
     ///   - text: The text that will be turned into a contextual vector (embedding)
     /// - Returns: The embedding of the given piece of text as an optional and the dominating language of the text, as an optional.
     func textualEmbeddingComputationWithNLEmbedding(text: String, language: NLLanguage) -> [Double]? {
-        if #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
+        /*if #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
             if let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language),
                let vector = sentenceEmbedding.vector(for: text) {
                     return vector
             }
+        }*/
+        var model_result = ModelInferenceResult()
+        let CText = strdup(text)
+        let ret = doModelInference(modelinf, UnsafePointer(CText), &model_result)
+        
+        if ret == 0 {
+            let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
+            let dvector = vector.map{Double($0)}
+            
+            return dvector
         }
+        
         return nil
     }
 
@@ -550,6 +580,7 @@ public class Cluster {
         if let content = content,
            let language = language {
             let textualEmbedding = self.textualEmbeddingComputationWithNLEmbedding(text: content, language: language)
+            //let textualEmbedding = (0..<384).indices.map { Double($0) }
             scores = self.scoreTextualSimilarity(textualEmbedding: textualEmbedding, language: language, index: index, dataPointType: dataPointType, changeContent: changeContent)
             switch dataPointType {
             case .page:
@@ -1224,7 +1255,6 @@ public class Cluster {
                         let stablizedClusters = self.stabilize(predictedClusters)
                         let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
                         let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
-                        
                         self.mainQueue.async {
                             self.isClustering = false
                             if self.askForNotes {
