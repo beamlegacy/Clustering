@@ -126,9 +126,10 @@ class ClusteringTests: XCTestCase {
                     }
                 })
             }
-            wait(for: [expectation], timeout: 1)
+            wait(for: [expectation], timeout: 5)
             expect(cluster.navigationMatrix.matrix.flat).to(beCloseTo([0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]))
             let embedders = (NLEmbedding.sentenceEmbedding(for: NLLanguage.english), NLEmbedding.sentenceEmbedding(for: NLLanguage.french))
+                      
             if embedders == (nil, nil) {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
@@ -140,7 +141,7 @@ class ClusteringTests: XCTestCase {
                 expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             } else {
                 expect(cluster.entitiesMatrix.matrix.flat).to(beCloseTo([0, 0.2963, 0.1667, 0.25, 0, 0.2963, 0, 0.2722, 0, 0, 0.1667, 0.2722, 0, 0.25, 0, 0.25, 0, 0.25, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
-                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.9201, 0, 0, 0, 0.9201, 0, 0, 0, 0, 0, 0, 0, 0.9922, 0, 0, 0, 0.9922, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
+                expect(cluster.textualSimilarityMatrix.matrix.flat).to(beCloseTo([0, 0.7923, 0, 0, 0, 0.7923, 0, 0, 0, 0, 0, 0, 0, 0.6040, 0, 0, 0, 0.6040, 0, 0, 0, 0, 0, 0, 0], within: 0.0001))
             }
         }
     }
@@ -718,18 +719,16 @@ class ClusteringTests: XCTestCase {
             switch result {
             case .failure(let error):
                 if error as! Cluster.AdditionError == .notEnoughTextInNote {
-                    myFailure = "\(error)"
+                    myFailure = error.localizedDescription
                 }
                 expectation.fulfill()
             case .success(let result):
-                print(result)
                 _ = result
                 expectation.fulfill()
             }
         })
         wait(for: [expectation], timeout: 1)
-        expect(myFailure ?? "") == "notEnoughTextInNote"
-        
+        XCTAssertTrue((myFailure ?? "").hasSuffix("(Clustering.Cluster.AdditionError erreur 2.)"))
     }
 
     func testbeWithAndBeApart() throws {

@@ -49,10 +49,9 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
     
     DLDevice dev = {kDLMetal, 0};
     DLDevice cpu = {kDLCPU, 0};
-    std::cerr << "oijoijo" << std::endl;
+    
     try {
         tvm::runtime::Module gmod = this->model.GetFunction("default")(dev);
-        std::cerr << "oijoijo" << std::endl;
         tvm::runtime::PackedFunc set_input = gmod.GetFunction("set_input");
         tvm::runtime::PackedFunc get_output = gmod.GetFunction("get_output");
         tvm::runtime::PackedFunc run = gmod.GetFunction("run");
@@ -100,6 +99,7 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         clamped_input_mask_expanded = input_mask_expanded.colwise().sum();
         clamped_input_mask_expanded = (clamped_input_mask_expanded.array() == 0.0).select(0.000000001, clamped_input_mask_expanded);
         final_output = ((token_embeddings.array() * input_mask_expanded.array()).matrix().colwise().sum()).array() / clamped_input_mask_expanded.array();
+
         result->weigths = new float[final_output.size()];
         
         std::memcpy(result->weigths, final_output.data(), sizeof(float)*final_output.size());

@@ -4,7 +4,6 @@ import NaturalLanguage
 import Accelerate
 import CClustering
 
-
 // swiftlint:disable:next type_body_length
 public class Cluster {
 
@@ -114,7 +113,6 @@ public class Cluster {
     var askForNotes = false
     var skippedPages = [Page]()
     var skippedNotes = [ClusteringNote]()
-    var modelinf: UnsafeMutableRawPointer! = nil
     
     var isClustering: Bool = false {
         didSet {
@@ -142,38 +140,46 @@ public class Cluster {
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100, useMainQueue: Bool = true) {
-        // This way we can define the main queue we want to use. In an app, the mainQueue to allow UI update. In other contexts, we do in background
-        let otherQueue = DispatchQueue.init(label: "FakeMain")
-        
-        if let modelURL = Bundle.module.url(forResource: "minilm_multilingual", withExtension: "dylib"),
-           let tokenizerModelURL = Bundle.module.url(forResource: "sentencepiece", withExtension: "bpe.model") {
-            let CModelPath = strdup(modelURL.path)
-            let CTokenizerModelPath = strdup(tokenizerModelURL.path)
-            
-            modelinf = createModelInferenceWrapper(UnsafePointer(CModelPath), UnsafePointer(CTokenizerModelPath))
-        } else {
-            let CModelPath = strdup("/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib")
-            let CTokenizerModelPath = strdup("/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model")
-            modelinf = createModelInferenceWrapper(UnsafePointer(CModelPath), UnsafePointer(CTokenizerModelPath))
-        }
-        
-        mainQueue = useMainQueue ? DispatchQueue.main : otherQueue
+    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100) {
+        mainQueue = DispatchQueue(label: "ClusteringModel")
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
         self.weights[.text] = weightText
         self.weights[.entities] = weightEntities
         self.noteContentThreshold = noteContentThreshold
+    
         do {
             try self.performCandidateChange()
         } catch {
             fatalError()
         }
     }
-    
+           
     deinit {
         removeModelInferenceWrapper(modelinf)
     }
+
+    lazy var modelinf: UnsafeMutableRawPointer! = {
+        /*guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
+           var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
+        else {
+          fatalError("Resources not found")
+        }*/
+        var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
+        var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+
+        var modelinf: UnsafeMutableRawPointer!
+        
+        mainQueue.sync {
+          modelPath.withUTF8 { cModelPath in
+            tokenizerModelPath.withUTF8 { cTokenizerModelPath in
+              modelinf = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
+            }
+          }
+        }
+
+        return modelinf
+    }()
 
     public class SimilarityMatrix {
         var matrix = Matrix([[0]])
@@ -411,25 +417,29 @@ public class Cluster {
     /// - Parameters:
     ///   - text: The text that will be turned into a contextual vector (embedding)
     /// - Returns: The embedding of the given piece of text as an optional and the dominating language of the text, as an optional.
-    func textualEmbeddingComputationWithNLEmbedding(text: String, language: NLLanguage) -> [Double]? {
-        /*if #available(iOS 14, macOS 11, *), language != NLLanguage.undetermined {
-            if let sentenceEmbedding = NLEmbedding.sentenceEmbedding(for: language),
-               let vector = sentenceEmbedding.vector(for: text) {
-                    return vector
+    func textualEmbeddingComputationWithNLEmbedding(text: String, language: NLLanguage, completion: @escaping ([Double]?)->()) {
+        DispatchQueue.main.async {
+            if text.isEmpty {
+                completion(nil)
             }
-        }*/
-        var model_result = ModelInferenceResult()
-        let CText = strdup(text)
-        let ret = doModelInference(modelinf, UnsafePointer(CText), &model_result)
-        
-        if ret == 0 {
-            let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
-            let dvector = vector.map{Double($0)}
             
-            return dvector
+            var content = text
+            var model_result = ModelInferenceResult()
+            var ret: Int32 = -1
+                
+            content.withUTF8 { cText in
+                ret = doModelInference(self.modelinf, cText.baseAddress, &model_result)
+            }
+                
+            if ret == 0 {
+                let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
+                let dvector = vector.map{Double($0)}
+
+                completion(dvector)
+            } else {
+                completion(nil)
+            }
         }
-        
-        return nil
     }
 
     ///  Finds entities of the specified types in a given text
@@ -460,8 +470,9 @@ public class Cluster {
         let vec1Normed = cblas_dnrm2(Int32(vector1.count), vector1, 1)
         let vec2Normed = cblas_dnrm2(Int32(vector2.count), vector2, 1)
         let dotProduct = cblas_ddot(Int32(vector1.count), vector1, 1, vector2, 1)
+        let res = dotProduct / (vec1Normed * vec2Normed)
 
-        return dotProduct / (vec1Normed * vec2Normed)
+        return res
     }
 
     /// Compute the cosine similarity of the textual embedding of the current data point
@@ -579,15 +590,23 @@ public class Cluster {
         }
         if let content = content,
            let language = language {
-            let textualEmbedding = self.textualEmbeddingComputationWithNLEmbedding(text: content, language: language)
-            //let textualEmbedding = (0..<384).indices.map { Double($0) }
-            scores = self.scoreTextualSimilarity(textualEmbedding: textualEmbedding, language: language, index: index, dataPointType: dataPointType, changeContent: changeContent)
-            switch dataPointType {
-            case .page:
-                pages[index].textEmbedding = textualEmbedding
-            case .note:
-                notes[index].textEmbedding = textualEmbedding
+            let semaphore = DispatchSemaphore(value: 0)
+            self.textualEmbeddingComputationWithNLEmbedding(text: content, language: language) { [weak self] result in
+                guard let self = self else {
+                    return
+                }
+
+                scores = self.scoreTextualSimilarity(textualEmbedding: result, language: language, index: index, dataPointType: dataPointType, changeContent: changeContent)
+
+                switch dataPointType {
+                case .page:
+                    self.pages[index].textEmbedding = result
+                case .note:
+                    self.notes[index].textEmbedding = result
+                }
+                semaphore.signal()
             }
+            semaphore.wait()
         }
         if changeContent {
             var indexToChange = index
@@ -1255,6 +1274,7 @@ public class Cluster {
                         let stablizedClusters = self.stabilize(predictedClusters)
                         let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
                         let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
+                        
                         self.mainQueue.async {
                             self.isClustering = false
                             if self.askForNotes {
