@@ -27,7 +27,7 @@ public struct InformationForId: Equatable {
     public var cleanedContent: String? = nil
     public var entitiesInText: EntitiesInText? = nil
     public var entitiesInTitle: EntitiesInText? = nil
-    public var language: NLLanguage? = nil
+    //public var language: NLLanguage? = nil
     public var parentId: UUID? = nil
     
     public var isEmpty: Bool {
@@ -37,14 +37,14 @@ public struct InformationForId: Equatable {
 }
 
 public struct Page {
-    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
+    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, /*language: NLLanguage? = nil,*/ beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.id = id
         self.parentId = parentId
         self.title = title
         self.originalContent = originalContent
         self.cleanedContent = cleanedContent
         self.url = url
-        self.language = language
+        //self.language = language
         self.beWith = beWith
         self.beApart = beApart
     }
@@ -56,7 +56,7 @@ public struct Page {
     var cleanedContent: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
-    var language: NLLanguage?
+    //var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
     var url: URL?
     var domain: String?
@@ -65,11 +65,11 @@ public struct Page {
 }
 
 public struct ClusteringNote {
-    public init(id: UUID, title: String? = nil, content: [String]? = nil, language: NLLanguage? = nil) {
+    public init(id: UUID, title: String? = nil, content: [String]? = nil/*, language: NLLanguage? = nil*/) {
         self.id = id
         self.title = title
         self.originalContent = content
-        self.language = language
+        //self.language = language
     }
     
     public var id: UUID
@@ -79,6 +79,6 @@ public struct ClusteringNote {
     var cleanedContent: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
-    var language: NLLanguage?
+    //var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
 }
