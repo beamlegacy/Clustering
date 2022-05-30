@@ -1161,10 +1161,10 @@ public class Cluster {
                 self.pages[newIndex].domain = page.url?.host
             } else if let note = note {
                 // If the note does not contain enough text, abort
-                guard let content = note.originalContent,
+                /*guard let content = note.originalContent,
                       content.map({ $0.split(separator: " ").count }).reduce(0, +) > self.noteContentThreshold else {
                           throw AdditionError.notEnoughTextInNote
-                      }
+                      }*/
                 newIndex = self.notes.count
                 self.notes.append(note)
                 if let title = self.notes[newIndex].title {
