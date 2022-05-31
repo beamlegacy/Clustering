@@ -14,12 +14,12 @@ class ClusteringTests: XCTestCase {
         let cluster = Cluster()
         expect(cluster.candidate) == 2
         expect(cluster.laplacianCandidate) == .randomWalkLaplacian
-        expect(cluster.matrixCandidate) == .combinationSigmoidWithTextErasure
+        expect(cluster.matrixCandidate) == .combinationAllBinarisedMatrix
         expect(cluster.noteMatrixCandidate) == .sigmoidOnEntities
         expect(cluster.numClustersCandidate) == .biggestDistanceInPercentages
-        expect(cluster.weights[.navigation]) == 0.5
-        expect(cluster.weights[.text]) == 0.9
-        expect(cluster.weights[.entities]) == 0.2
+        expect(cluster.weights[.navigation]) == 1.0
+        expect(cluster.weights[.text]) == 0.4
+        expect(cluster.weights[.entities]) == 1.0
     }
 
     /// Test adding and removing of data points from a (non-navigation) similarity matrix. For both addition and removal, test that all locations in the matrix (first, last, middle) work as expected
@@ -93,6 +93,44 @@ class ClusteringTests: XCTestCase {
         let cossim = cluster.cosineSimilarity(vector1: vec1, vector2: vec2)
 
         expect(cossim).to(beCloseTo(0.9847319278346619, within: 0.0001))
+    }
+    
+    func testGoogleSearchClustering() throws {
+        let cluster = Cluster()
+        var UUIDs: [UUID] = []
+        for _ in 0...8 {
+            UUIDs.append(UUID())
+        }
+        let pages = [
+            Page(id: UUIDs[0], parentId: nil, url: URL(string: "https://www.google.com/search?q=mozart")!, title: "mozart - Google Search"),
+            Page(id: UUIDs[1], parentId: nil, url: URL(string: "https://www.google.com/search?q=classical%20music%20mozart")!, title: "classical music mozart - Google Search"),
+            Page(id: UUIDs[2], parentId: nil, url: URL(string: "https://www.google.com/search?q=cat")!, title: "cat - Google Search"),
+            Page(id: UUIDs[3], parentId: nil, url: URL(string: "https://www.google.com/search?q=dog")!, title: "dog - Google Search"),
+            Page(id: UUIDs[4], parentId: nil, url: URL(string: "https://www.google.com/search?q=worm")!, title: "worm - Google Search"),
+            Page(id: UUIDs[5], parentId: nil, url: URL(string: "https://www.google.com/search?q=snake")!, title: "snake - Google Search"),
+            Page(id: UUIDs[6], parentId: nil, url: URL(string: "https://www.google.com/search?q=beethoven")!, title: "beethoven - Google Search"),
+            Page(id: UUIDs[7], parentId: nil, url: URL(string: "https://www.google.com/search?q=musique%20classique")!, title: "musique classique - Google Search")
+        ]
+        var clusteredPageIds: [[UUID]] = []
+        let expectation = self.expectation(description: "Add page expectation")
+        for page in pages.enumerated() {
+            cluster.add(page: page.element, ranking: nil, completion: { result in
+                switch result {
+                case .failure(let error):
+                    if error as! Cluster.AdditionError != .skippingToNextAddition {
+                        XCTFail(error.localizedDescription)
+                    }
+                case .success(let result):
+                    clusteredPageIds = result.pageGroups
+                }
+                if page.offset == pages.count - 1 {
+                    expectation.fulfill()
+                }
+            })
+        }
+        wait(for: [expectation], timeout: 10)
+        
+        XCTAssertTrue(clusteredPageIds.count == 5)
     }
 
     /// Test that scoring of textual similarity between two texts is done correctly. At the same opportunity, test all similarity matrices (entities and navigation, in addition to text)

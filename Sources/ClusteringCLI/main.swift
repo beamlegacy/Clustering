@@ -65,18 +65,8 @@ extension ClusteringCLI {
     }
     
     func run() throws {
-        //let cluster = Cluster(useMainQueue: false)
-        let modelinf = createModelInferenceWrapper(UnsafePointer(strdup("minilm_multilingual.dylib")), UnsafePointer(strdup("sentencepiece.bpe.model")))
-        var model_result = ModelInferenceResult()
-        let CText = strdup("oerig ozerihjgoig oqijhrg oqzirh go")
-        let ret = doModelInference(modelinf, UnsafePointer(CText), &model_result)
-        
-        if ret == 0 {
-            let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
-            let dvector = vector.map{Double($0)}
-            print(dvector)
-        }
-        /*var pages: [Page] = []
+        let cluster = Cluster(useMainQueue: false)
+        var pages: [Page] = []
         var notes: [ClusteringNote] = []
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
@@ -267,7 +257,7 @@ extension ClusteringCLI {
         } else {
             print("Err: \(outputCsv.count) is different from \(csvFile.count)")
             fflush(stdout)
-        }*/
+        }
     }
 }
 

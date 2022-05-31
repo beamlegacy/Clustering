@@ -4,6 +4,54 @@ import NaturalLanguage
 import Accelerate
 import CClustering
 
+
+extension NSRegularExpression {
+    /// An array of substring of the given string, separated by this regular expression, restricted to returning at most n items.
+    /// If n substrings are returned, the last substring (the nth substring) will contain the remainder of the string.
+    /// - Parameter str: String to be matched
+    /// - Parameter n: If `n` is specified and n != -1, it will be split into n elements else split into all occurences of this pattern
+    func splitn(_ str: String, _ n: Int = -1) -> [String] {
+        let range = NSRange(location: 0, length: str.utf8.count)
+        let matches = self.matches(in: str, range: range);
+        
+        var result = [String]()
+        if (n != -1 && n < 2) || matches.isEmpty  { return [str] }
+        
+        if let first = matches.first?.range {
+            if first.location == 0 { result.append("") }
+            if first.location != 0 {
+                let _range = NSRange(location: 0, length: first.location)
+                result.append(String(str[Range(_range, in: str)!]))
+            }
+        }
+        
+        for (cur, next) in zip(matches, matches[1...]) {
+            let loc = cur.range.location + cur.range.length
+            if n != -1 && result.count + 1 == n {
+                let _range = NSRange(location: loc, length: str.utf8.count - loc)
+                result.append(String(str[Range(_range, in: str)!]))
+                return result
+                
+            }
+            let len = next.range.location - loc
+            let _range = NSRange(location: loc, length: len)
+            result.append(String(str[Range(_range, in: str)!]))
+        }
+        
+        if let last = matches.last?.range, !(n != -1 && result.count >= n) {
+            let lastIndex = last.length + last.location
+            if lastIndex == str.utf8.count { result.append("") }
+            if lastIndex < str.utf8.count {
+                let _range = NSRange(location: lastIndex, length: str.utf8.count - lastIndex)
+                result.append(String(str[Range(_range, in: str)!]))
+            }
+        }
+        
+        return result;
+    }
+    
+}
+
 // swiftlint:disable:next type_body_length
 public class Cluster {
 
@@ -48,6 +96,17 @@ public class Cluster {
         case combinationAllBinarisedMatrix
         case combinationSigmoidWithTextErasure
         case fixedPagesTestNotes
+        
+        var description : String {
+            switch self {
+            // Use Internationalization, as appropriate.
+            case .navigationMatrix: return "navigationMatrix"
+            case .combinationAllSimilarityMatrix: return "combinationAllSimilarityMatrix"
+            case .combinationAllBinarisedMatrix: return "combinationAllBinarisedMatrix"
+            case .combinationSigmoidWithTextErasure: return "combinationSigmoidWithTextErasure"
+            case .fixedPagesTestNotes: return "fixedPagesTestNotes"
+            }
+          }
     }
 
     enum SimilarityForNotesCandidate {
@@ -133,14 +192,14 @@ public class Cluster {
     //Define which Laplacian to use
     var laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
     // Define which similarity matrix to use
-    var matrixCandidate = SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
+    var matrixCandidate = SimilarityMatrixCandidate.combinationAllBinarisedMatrix //SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
     var noteMatrixCandidate = SimilarityForNotesCandidate.fixed
     // Define which number of clusters computation to use
     var numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
     var candidate: Int
     var weights = [AllWeights: Double]()
 
-    public init(candidate: Int = 2, weightNavigation: Double = 0.5, weightText: Double = 0.9, weightEntities: Double = 0.2, noteContentThreshold: Int = 100) {
+    public init(candidate: Int = 2, weightNavigation: Double = 1.0, weightText: Double = 0.4, weightEntities: Double = 1.0, noteContentThreshold: Int = 100) {
         mainQueue = DispatchQueue(label: "ClusteringModel")
         self.candidate = candidate
         self.weights[.navigation] = weightNavigation
@@ -599,8 +658,17 @@ public class Cluster {
            let language = language*/ {
             let semaphore = DispatchSemaphore(value: 0)
             let title = title ?? ""
+            let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
+            let splitTitle = regex.splitn(title)
+            var titleAsArray: ArraySlice<String> = []
             
-            self.textualEmbeddingComputationWithNLEmbedding(text: (title + " " + content).trimmingCharacters(in: .whitespacesAndNewlines)/*, language: language*/) { [weak self] result in
+            if splitTitle.count > 1 {
+                titleAsArray = splitTitle[0..<splitTitle.count-1]
+            } else {
+                titleAsArray = splitTitle[0..<1]
+            }
+            
+            self.textualEmbeddingComputationWithNLEmbedding(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines)/*, language: language*/) { [weak self] result in
                 guard let self = self else {
                     return
                 }
@@ -661,7 +729,18 @@ public class Cluster {
             }
         }
         if let title = title {
-            entitiesInNewTitle = findEntitiesInText(text: (title.split(separator: " ").map { $0.capitalized }).joined(separator: " ") + " and some text")
+            let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
+            let splitTitle = regex.splitn(title)
+            var titleAsArray: ArraySlice<String> = []
+            
+            if splitTitle.count > 1 {
+                titleAsArray = splitTitle[0..<splitTitle.count-1]
+            } else {
+                titleAsArray = splitTitle[0..<1]
+            }
+            
+            entitiesInNewTitle = findEntitiesInText(text: (titleAsArray.map { $0.capitalized }).joined(separator: " ") + " and some text")
+            
             switch dataPointType {
             case .page:
                 pages[index].entitiesInTitle = entitiesInNewTitle
@@ -879,20 +958,28 @@ public class Cluster {
     // swiftlint:disable:next cyclomatic_complexity
     func createAdjacencyMatrix() {
         // Prepare the entire matrix, as if it is composed only of pages
+        
         switch self.matrixCandidate {
         case .navigationMatrix:
+            fputs("1", stderr)
             self.adjacencyMatrix = self.navigationMatrix.matrix
         case .combinationAllSimilarityMatrix:
+            fputs("2", stderr)
             self.adjacencyMatrix = (self.weights[.text] ?? 0.5) .*  self.textualSimilarityMatrix.matrix + (self.weights[.entities] ?? 0.5) .* self.entitiesMatrix.matrix + (self.weights[.navigation] ?? 0.5) .* self.navigationMatrix.matrix
         case .combinationAllBinarisedMatrix:
-            self.adjacencyMatrix = self.binarise(matrix: self.navigationMatrix.matrix, threshold: (self.weights[.navigation] ?? 0.5)) + self.binarise(matrix: self.textualSimilarityMatrix.matrix, threshold: (weights[.text] ?? 0.5)) + self.binarise(matrix: self.entitiesMatrix.matrix, threshold: (weights[.entities] ?? 0.5))
+            //fputs("3", stderr)
+            //self.adjacencyMatrix = self.binarise(matrix: self.navigationMatrix.matrix, threshold: (self.weights[.navigation] ?? 0.5)) + self.binarise(matrix: self.textualSimilarityMatrix.matrix, threshold: (weights[.text] ?? 0.5)) + self.binarise(matrix: self.entitiesMatrix.matrix, threshold: (weights[.entities] ?? 0.5))
+            self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix, threshold: (weights[.text] ?? 0.5))
+            //fputs(self.adjacencyMatrix.description, stderr)
         case .combinationSigmoidWithTextErasure:
+            fputs("4", stderr)
 //            let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: self.weights[.navigation] ?? 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: self.weights[.text] ?? 0.5, beta: self.beta)
             let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: self.weights[.entities] ?? 0.5, beta: self.beta)
 //            self.adjacencyMatrix = textSigmoidMatrix .* navigationSigmoidMatrix + entitySigmoidMatrix
             self .adjacencyMatrix = (textSigmoidMatrix .* self.navigationMatrix.matrix + entitySigmoidMatrix) .* self.beApartMatrix.matrix + self.beTogetherMatrix.matrix
         case .fixedPagesTestNotes:
+            fputs("5", stderr)
             let navigationSigmoidMatrix = self.performSigmoidOn(matrix: self.navigationMatrix.matrix, middle: 0.5, beta: self.beta)
             let textSigmoidMatrix = self.performSigmoidOn(matrix: self.textualSimilarityMatrix.matrix, middle: 0.9, beta: self.beta)
             let entitySigmoidMatrix = self.performSigmoidOn(matrix: self.entitiesMatrix.matrix, middle: 0.2, beta: self.beta)
@@ -1365,7 +1452,7 @@ public class Cluster {
             self.numClustersCandidate = NumClusterComputationCandidate.threshold
         case 2:
             self.laplacianCandidate = LaplacianCandidate.randomWalkLaplacian
-            self.matrixCandidate = SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
+            self.matrixCandidate = SimilarityMatrixCandidate.combinationAllBinarisedMatrix //SimilarityMatrixCandidate.combinationSigmoidWithTextErasure
             self.noteMatrixCandidate = SimilarityForNotesCandidate.sigmoidOnEntities
             self.numClustersCandidate = NumClusterComputationCandidate.biggestDistanceInPercentages
         case 3:
