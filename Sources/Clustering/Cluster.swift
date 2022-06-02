@@ -10,7 +10,7 @@ extension NSRegularExpression {
     /// - Parameter str: String to be matched
     /// - Parameter n: If `n` is specified and n != -1, it will be split into n elements else split into all occurences of this pattern
     func splitn(_ str: String, _ n: Int = -1) -> [String] {
-        let range = NSRange(location: 0, length: str.utf8.count)
+        let range = NSRange(location: 0, length: str.count)
         let matches = self.matches(in: str, range: range);
         var result = [String]()
         
@@ -34,7 +34,7 @@ extension NSRegularExpression {
             let loc = cur.range.location + cur.range.length
             
             if n != -1 && result.count + 1 == n {
-                let _range = NSRange(location: loc, length: str.utf8.count - loc)
+                let _range = NSRange(location: loc, length: str.count - loc)
             
                 result.append(String(str[Range(_range, in: str)!]))
                 
@@ -51,12 +51,12 @@ extension NSRegularExpression {
         if let last = matches.last?.range, !(n != -1 && result.count >= n) {
             let lastIndex = last.length + last.location
             
-            if lastIndex == str.utf8.count {
+            if lastIndex == str.count {
                 result.append("")
             }
             
             if lastIndex < str.utf8.count {
-                let _range = NSRange(location: lastIndex, length: str.utf8.count - lastIndex)
+                let _range = NSRange(location: lastIndex, length: str.count - lastIndex)
             
                 result.append(String(str[Range(_range, in: str)!]))
             }
@@ -79,12 +79,6 @@ enum WhereToAdd {
     case middle
 }
 
-public enum Flag {
-    case sendRanking
-    case addNotes
-    case none
-}
-
 /// Error enums
 enum MatrixError: Error {
     case dimensionsNotMatching
@@ -92,20 +86,9 @@ enum MatrixError: Error {
     case pageOutOfDimensions
 }
 
-enum CandidateError: Error {
-    case unknownCandidate
-}
-
-enum MatrixTypeError: Error {
-    case unknownMatrixType
-}
-
 public enum AdditionError: Error {
     case moreThanOneObjectToAdd
     case noObjectsToAdd
-    case notEnoughTextInNote
-    case skippingToNextAddition
-    case abortingAdditionDuringClustering
 }
 
 enum CClusteringError: Error {
@@ -258,6 +241,8 @@ public class Cluster {
     var adjacencyMatrix = Matrix([[0]])
     var textualSimilarityMatrix = SimilarityMatrix()
     @MainActor let modelInf = ModelInference()
+    
+    public init() {}
 
     ///  Extract a submatrix from a matrix corresponding to a list of indeces to include,
     ///  both rows and columns
@@ -482,17 +467,21 @@ public class Cluster {
             title = notes[index].title ?? ""
         }
         
-        let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
-        let splitTitle = regex.splitn(title)
-        var titleAsArray: ArraySlice<String> = []
-        
-        if splitTitle.count > 1 {
-            titleAsArray = splitTitle[0..<splitTitle.count-1]
-        } else {
-            titleAsArray = splitTitle[0..<1]
+        if !title.isEmpty {
+            let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
+            let splitTitle = regex.splitn(title)
+            var titleAsArray: ArraySlice<String> = []
+            
+            if splitTitle.count > 1 {
+                titleAsArray = splitTitle[0..<splitTitle.count-1]
+            } else {
+                titleAsArray = splitTitle[0..<1]
+            }
+            
+            title = (titleAsArray.map { $0.capitalized }).joined(separator: " ")
         }
         
-        let encodedText = try await self.modelInf.encode(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
+        let encodedText = try await self.modelInf.encode(text: (title + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
         let scores = self.scoreTextualSimilarity(textualEmbedding: encodedText, index: index, dataPointType: dataPointType)
         
         switch dataPointType {
@@ -717,7 +706,7 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(page: Page? = nil, note: ClusteringNote? = nil) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]) {
+    public func add(page: Page? = nil, note: ClusteringNote? = nil) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         // Check that we are adding exactly one object
         if page != nil && note != nil {
             throw AdditionError.moreThanOneObjectToAdd
@@ -737,7 +726,7 @@ public class Cluster {
         let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
         let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes)
 
-        return (pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)
+        return (pageGroups: resultPages, noteGroups: resultNotes, similarities: similarities)
     }
 
     /// Stabilize clustering results to maintain order from one clustering to another

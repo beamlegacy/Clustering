@@ -76,6 +76,20 @@
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "ClusteringCLI"
+               BuildableName = "ClusteringCLI"
+               BlueprintName = "ClusteringCLI"
+               ReferencedContainer = "container:">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -110,9 +124,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "clustering-cli"
-            BuildableName = "clustering-cli"
-            BlueprintName = "clustering-cli"
+            BlueprintIdentifier = "ClusteringCLI"
+            BuildableName = "ClusteringCLI"
+            BlueprintName = "ClusteringCLI"
             ReferencedContainer = "container:">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -136,9 +150,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "clustering-cli"
-            BuildableName = "clustering-cli"
-            BlueprintName = "clustering-cli"
+            BlueprintIdentifier = "ClusteringCLI"
+            BuildableName = "ClusteringCLI"
+            BlueprintName = "ClusteringCLI"
             ReferencedContainer = "container:">
          </BuildableReference>
       </BuildableProductRunnable>

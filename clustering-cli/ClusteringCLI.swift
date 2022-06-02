@@ -5,11 +5,12 @@
 //  Created by Julien Plu on 22/03/2022.
 //
 
+// Issue with the @main annotation https://github.com/apple/swift/issues/55127
+
 import ArgumentParser
 import Foundation
 import Clustering
 import CodableCSV
-import NaturalLanguage
 import CClustering
 
 
@@ -24,8 +25,8 @@ struct StandardErrorOutputStream: TextOutputStream {
     }
 }
 
-
-struct ClusteringCLI: ParsableCommand {
+@main
+struct ClusteringCLI: AsyncParsableCommand {
     @Option(help: "The CSV file to inject in the Clustering package.")
     var inputFile: String
     
@@ -64,14 +65,13 @@ extension ClusteringCLI {
         return paths
     }
     
-    func run() throws {
-        let cluster = Cluster(useMainQueue: false)
+    mutating func run() async throws {
+        let cluster = Cluster()
         var pages: [Page] = []
         var notes: [ClusteringNote] = []
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
         var clusteredNoteIds: [[UUID]] = []
-        let runLoop = CFRunLoopGetCurrent()
         var id2colours: [String: String] = [:]
         
         for row in csvFile.records {
@@ -83,64 +83,42 @@ extension ClusteringCLI {
                 }
             }
             if row["noteName"] != "<???>" {
-                if let noteId = row["id"], let title = row["title"], let content = row["cleanedContent"], let language = row["language"] {
+                if let noteId = row["id"], let title = row["title"], let content = row["cleanedContent"] {
                     guard let convertedPageId = UUID(uuidString: noteId) else {
                         return
                     }
-                    notes.append(ClusteringNote(id: convertedPageId, title: title.replacingOccurrences(of: " and some text", with: ""), content: [content], language: NLLanguage.init(rawValue: language)))
+                    notes.append(ClusteringNote(id: convertedPageId, title: title.replacingOccurrences(of: " and some text", with: ""), content: [content]))
                 }
             } else {
-                if let pageId = row["id"], let parentId = row["parentId"], let title = row["title"], let cleanedContent = row["cleanedContent"], let url = row["url"], let language = row["language"] {
+                if let pageId = row["id"], let parentId = row["parentId"], let title = row["title"], let originalContent = row["cleanedContent"], let url = row["url"] {
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
                     let convertedParentId = parentId == "<???>" ? nil: UUID(uuidString: parentId)
                     
-                    pages.append(Page(id: convertedPageId, parentId: convertedParentId, url: URL(string: url), title: title.replacingOccurrences(of: " and some text", with: ""), cleanedContent: cleanedContent, language: NLLanguage.init(rawValue: language)))
+                    
+                    pages.append(Page(id: convertedPageId, parentId: convertedParentId, url: URL(string: url), title: title.replacingOccurrences(of: " and some text", with: ""), originalContent: [originalContent]))
                 }
             }
         }
         
-        DispatchQueue.global(qos: .userInitiated).async {
-            let semaphore = DispatchSemaphore(value: 0)
+        var result: (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) = (pageGroups: [], noteGroups: [], similarities: [:])
+        
+        for note in notes {
+            print("Add Note: " + note.id.description)
+            fflush(stdout)
+            result = try await cluster.add(note: note)
+        }
             
-            for note in notes {
-                print("Add Note: " + note.id.description)
-                fflush(stdout)
-                cluster.add(note: note, ranking: nil, completion: { result in
-                    switch result {
-                    case .failure:
-                        ()
-                    case .success(let result):
-                        clusteredNoteIds = result.noteGroups
-                        clusteredPageIds = result.pageGroups
-                    }
-                    semaphore.signal()
-                })
-                semaphore.wait()
-            }
-            
-            for page in pages {
-                print("Add Page: " + page.id.description)
-                fflush(stdout)
-                cluster.add(page: page, ranking: nil, completion: { result in
-                    switch result {
-                    case .failure:
-                        ()
-                    case .success(let result):
-                        clusteredNoteIds = result.noteGroups
-                        clusteredPageIds = result.pageGroups
-                    }
-                    semaphore.signal()
-                })
-                semaphore.wait()
-            }
-            
-            CFRunLoopStop(runLoop)
+        for page in pages {
+            print("Add Page: " + page.id.description)
+            fflush(stdout)
+            result = try await cluster.add(page: page)
         }
         
-        CFRunLoopRun()
-        
+        clusteredNoteIds = result.noteGroups
+        clusteredPageIds = result.pageGroups
+                
         var outputCsv: [[String]] = [csvFile.headers]
         var groupId2colours: [String:String] = [:]
         var emptyClusters = 0
@@ -220,12 +198,7 @@ extension ClusteringCLI {
                             newRow.append(csvFile[rowId.offset][9])
                         }
                         
-                        if let language = info.language {
-                            newRow.append(language.rawValue)
-                        } else {
-                            newRow.append(csvFile[rowId.offset][10])
-                        }
-                        
+                        newRow.append(csvFile[rowId.offset][10])
                         newRow.append(csvFile[rowId.offset][11])
                         newRow.append(convertedId.description)
                         
@@ -260,5 +233,3 @@ extension ClusteringCLI {
         }
     }
 }
-
-ClusteringCLI.main()

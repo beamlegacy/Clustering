@@ -1,4 +1,4 @@
-// swift-tools-version:5.4
+// swift-tools-version:5.5
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -13,7 +13,6 @@ let package = Package(
         .library(
             name: "Clustering",
             targets: ["Clustering"]),
-        .executable(name: "clustering-cli", targets: ["ClusteringCLI"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -37,13 +36,6 @@ let package = Package(
             dependencies: ["LASwift", "CClustering"],
             resources: [.copy("Resources")]
         ),
-        .executableTarget(
-            name: "ClusteringCLI",
-            dependencies: [
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                "Clustering", "LASwift", "CodableCSV"
-            ]
-        ),
         .testTarget(
             name: "ClusteringTests",
             dependencies: ["Clustering", "Nimble", "tvmruntime", "sentencepiece"]
@@ -51,3 +43,16 @@ let package = Package(
     ],
     cxxLanguageStandard: CXXLanguageStandard.cxx14
 )
+
+#if swift(>=5.6) && os(macOS)
+package.targets.append(contentsOf: [
+    .executableTarget(
+        name: "clustering-cli",
+        dependencies: [
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            "Clustering", "LASwift", "CodableCSV"
+        ],
+        path: "clustering-cli"
+    ),
+])
+#endif
