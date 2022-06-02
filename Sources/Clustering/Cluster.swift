@@ -115,13 +115,13 @@ enum CClusteringError: Error {
 
 class ModelInference {
     lazy var model: UnsafeMutableRawPointer! = {
-        /*guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
+        guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
            var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
         else {
           fatalError("Resources not found")
-        }*/
-        var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
-        var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+        }
+        //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
+        //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
         var model: UnsafeMutableRawPointer!
         
         modelPath.withUTF8 { cModelPath in
@@ -133,11 +133,11 @@ class ModelInference {
         return model
     }()
     
-    func encode(text: String) throws -> [Double] {
+    @MainActor func encode(text: String) async throws -> [Double] {
         var content = text
         var result = ModelInferenceResult()
         var ret: Int32 = -1
-            
+        
         content.withUTF8 { cText in
             ret = doModelInference(self.model, cText.baseAddress, &result)
         }
@@ -470,7 +470,7 @@ public class Cluster {
     ///   - index: The index of the data point within the corresponding vector (pages or notes)
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
-    func textualSimilarityProcess(index: Int, dataPointType: DataPoint) throws {
+    func textualSimilarityProcess(index: Int, dataPointType: DataPoint) async throws {
         var content: String
         var title: String
         
@@ -492,7 +492,7 @@ public class Cluster {
             titleAsArray = splitTitle[0..<1]
         }
         
-        let encodedText = try self.modelInf.encode(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
+        let encodedText = try await self.modelInf.encode(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
         let scores = self.scoreTextualSimilarity(textualEmbedding: encodedText, index: index, dataPointType: dataPointType)
         
         switch dataPointType {
@@ -661,7 +661,7 @@ public class Cluster {
     ///   - note: The note to be added, in case the data point is a note
     ///   - replaceContent: A flag to declare that the request comes from PnS, the page
     ///                     already exists, and the text considered for the page should be replaced.
-    func updateSubMatrices(page: Page? = nil, note: ClusteringNote? = nil) throws {
+    func updateSubMatrices(page: Page? = nil, note: ClusteringNote? = nil) async throws {
         // Decide if the received data point in a page or a note
         var dataPointType: DataPoint = .note
         
@@ -698,7 +698,7 @@ public class Cluster {
             }
         }
         // Add to submatrices
-        try self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
+        try await self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
     }
     
     /// The main function to access the package, adding a data point (page or note)
@@ -728,7 +728,7 @@ public class Cluster {
         }
             
         // Updating all sub-matrices
-        try self.updateSubMatrices(page: page, note: note)
+        try await self.updateSubMatrices(page: page, note: note)
                 
         self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
         
@@ -791,7 +791,7 @@ public class Cluster {
                 clusterizedNotes.append([UUID]())
             }
         }
-
+        
         for label in labels.enumerated() {
             if label.offset < self.notes.count {
                 clusterizedNotes[label.element].append(self.notes[label.offset].id)
