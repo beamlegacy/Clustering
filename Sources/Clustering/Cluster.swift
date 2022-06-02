@@ -67,70 +67,54 @@ extension NSRegularExpression {
     
 }
 
-// swiftlint:disable:next type_body_length
-public class Cluster {
-    enum DataPoint {
-        case page
-        case note
-    }
 
-    enum WhereToAdd {
-        case first
-        case last
-        case middle
-    }
+enum DataPoint {
+    case page
+    case note
+}
 
-    public enum Flag {
-        case sendRanking
-        case addNotes
-        case none
-    }
+enum WhereToAdd {
+    case first
+    case last
+    case middle
+}
 
-    /// Error enums
-    enum MatrixError: Error {
-        case dimensionsNotMatching
-        case matrixNotSquare
-        case pageOutOfDimensions
-    }
+public enum Flag {
+    case sendRanking
+    case addNotes
+    case none
+}
 
-    enum CandidateError: Error {
-        case unknownCandidate
-    }
+/// Error enums
+enum MatrixError: Error {
+    case dimensionsNotMatching
+    case matrixNotSquare
+    case pageOutOfDimensions
+}
 
-    enum MatrixTypeError: Error {
-        case unknownMatrixType
-    }
+enum CandidateError: Error {
+    case unknownCandidate
+}
 
-    public enum AdditionError: Error {
-        case moreThanOneObjectToAdd
-        case noObjectsToAdd
-        case notEnoughTextInNote
-        case skippingToNextAddition
-        case abortingAdditionDuringClustering
-    }
-    
-    enum CClusteringError: Error {
-        case tokenizerInitialization
-    }
+enum MatrixTypeError: Error {
+    case unknownMatrixType
+}
 
-    let clusteringQueue = DispatchQueue(label: "clusteringQueue")
-    let mainQueue: DispatchQueue
-    let thresholdComparison = 0.4
-    var pages = [Page]()
-    var notes = [ClusteringNote]()
-    // As the adjacency matrix is never touched on its own, just through the sub matrices, it does not need add or remove methods.
-    var adjacencyMatrix = Matrix([[0]])
-    var textualSimilarityMatrix = SimilarityMatrix()
+public enum AdditionError: Error {
+    case moreThanOneObjectToAdd
+    case noObjectsToAdd
+    case notEnoughTextInNote
+    case skippingToNextAddition
+    case abortingAdditionDuringClustering
+}
 
-    public init() {
-        mainQueue = DispatchQueue(label: "ClusteringModel")
-    }
-           
-    deinit {
-        removeModelInferenceWrapper(modelinf)
-    }
+enum CClusteringError: Error {
+    case tokenizerInitialization
+}
 
-    lazy var modelinf: UnsafeMutableRawPointer! = {
+
+class ModelInference {
+    lazy var model: UnsafeMutableRawPointer! = {
         /*guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
            var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
         else {
@@ -138,106 +122,142 @@ public class Cluster {
         }*/
         var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
         var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
-
-        var modelinf: UnsafeMutableRawPointer!
+        var model: UnsafeMutableRawPointer!
         
-        mainQueue.sync {
-          modelPath.withUTF8 { cModelPath in
+        modelPath.withUTF8 { cModelPath in
             tokenizerModelPath.withUTF8 { cTokenizerModelPath in
-              modelinf = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
+                model = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
             }
-          }
         }
 
-        return modelinf
+        return model
     }()
-
-    public class SimilarityMatrix {
-        var matrix = Matrix([[0]])
-
-        /// Add a data point (webpage or note) to the similarity matrix
-        ///
-        /// - Parameters:
-        ///   - similarities: A vector of similarities between the data point to be added and all existing data points, by the order of appearence in the matrix
-        ///   - type: The type of data point, either page or note
-        ///   - numExistingNotes: The number of notes already existing in the matrix
-        ///   - numExistingPages: The number of pages already existing in the matrix
-        func addDataPoint(similarities: [Double], type: DataPoint, numExistingNotes: Int, numExistingPages: Int) throws {
-            guard matrix.rows == matrix.cols else {
-              throw MatrixError.matrixNotSquare
-            }
+    
+    func encode(text: String) throws -> [Double] {
+        var content = text
+        var result = ModelInferenceResult()
+        var ret: Int32 = -1
             
-            guard matrix.rows == similarities.count else {
-              throw MatrixError.dimensionsNotMatching
-            }
-
-            var whereToAdd: WhereToAdd?
+        content.withUTF8 { cText in
+            ret = doModelInference(self.model, cText.baseAddress, &result)
+        }
             
-            if numExistingPages == 0 && numExistingNotes == 0 {
-                self.matrix = Matrix([[0]])
+        if ret == 0 {
+            let vector = Array(UnsafeBufferPointer(start: result.weigths, count: Int(result.size)))
             
-                return
-            } else if type == .page || numExistingPages == 0 {
-                whereToAdd = .last
-            } else if numExistingNotes == 0 {
-                whereToAdd = .first
-            } else { // Adding a note, when there's already at least one note and one page
-                whereToAdd = .middle
-            }
+            return vector.map{Double($0)}
+        }
+        
+        throw CClusteringError.tokenizerInitialization
+    }
+    
+    deinit {
+        removeModelInferenceWrapper(self.model)
+    }
+}
 
-            if let whereToAdd = whereToAdd {
-                switch whereToAdd {
-                case .first:
-                    self.matrix = similarities ||| self.matrix
-                    
-                    var similarities_row = similarities
-                    
-                    similarities_row.insert(0.0, at: 0)
-                    
-                    self.matrix = similarities_row === self.matrix
-                case .last:
-                    self.matrix = self.matrix ||| similarities
-                    
-                    var similarities_row = similarities
-                    
-                    similarities_row.append(0.0)
-                    
-                    self.matrix = self.matrix === similarities_row
-                case .middle:
-                    let upLeft = self.matrix ?? (.Take(numExistingNotes), .Take(numExistingNotes))
-                    let upRight = self.matrix ?? (.Take(numExistingNotes), .TakeLast(numExistingPages))
-                    let downLeft = self.matrix ?? (.TakeLast(numExistingPages), .Take(numExistingNotes))
-                    let downRight = self.matrix ?? (.TakeLast(numExistingPages), .TakeLast(numExistingPages))
-                    let left = upLeft === (Array(similarities[0..<numExistingNotes]) === downLeft)
-                    let right = upRight === (Array(similarities[numExistingNotes..<similarities.count]) === downRight)
-                    var longSimilarities = similarities
-                    
-                    longSimilarities.insert(0, at: numExistingNotes)
-                    
-                    self.matrix = left ||| (longSimilarities ||| right)
-                }
-            }
+
+public class SimilarityMatrix {
+    var matrix = Matrix([[0]])
+
+    /// Add a data point (webpage or note) to the similarity matrix
+    ///
+    /// - Parameters:
+    ///   - similarities: A vector of similarities between the data point to be added and all existing data points, by the order of appearence in the matrix
+    ///   - type: The type of data point, either page or note
+    ///   - numExistingNotes: The number of notes already existing in the matrix
+    ///   - numExistingPages: The number of pages already existing in the matrix
+    func addDataPoint(similarities: [Double], type: DataPoint, numExistingNotes: Int, numExistingPages: Int) throws {
+        guard matrix.rows == matrix.cols else {
+          throw MatrixError.matrixNotSquare
+        }
+        
+        guard matrix.rows == similarities.count else {
+          throw MatrixError.dimensionsNotMatching
         }
 
-        /// Remove a data point (webpage or note, currently used only for pages) from the similarity matrix
-        ///
-        /// - Parameters:
-        ///   - Index: The index of the data point to be removed
-        func removeDataPoint(index: Int) throws {
-            guard matrix.rows == matrix.cols else {
-              throw MatrixError.matrixNotSquare
-            }
-            
-            guard index <= matrix.rows else {
-              throw MatrixError.pageOutOfDimensions
-            }
+        var whereToAdd: WhereToAdd?
+        
+        if numExistingPages == 0 && numExistingNotes == 0 {
+            self.matrix = Matrix([[0]])
+        
+            return
+        } else if type == .page || numExistingPages == 0 {
+            whereToAdd = .last
+        } else if numExistingNotes == 0 {
+            whereToAdd = .first
+        } else { // Adding a note, when there's already at least one note and one page
+            whereToAdd = .middle
+        }
 
-            var indecesToKeep = [Int](0..<self.matrix.rows)
-            
-            indecesToKeep = Array(Set(indecesToKeep).subtracting(Set([index]))).sorted()
-            self.matrix = self.matrix ?? (.Pos(indecesToKeep), .Pos(indecesToKeep))
+        if let whereToAdd = whereToAdd {
+            switch whereToAdd {
+            case .first:
+                self.matrix = similarities ||| self.matrix
+                
+                var similarities_row = similarities
+                
+                similarities_row.insert(0.0, at: 0)
+                
+                self.matrix = similarities_row === self.matrix
+            case .last:
+                self.matrix = self.matrix ||| similarities
+                
+                var similarities_row = similarities
+                
+                similarities_row.append(0.0)
+                
+                self.matrix = self.matrix === similarities_row
+            case .middle:
+                let upLeft = self.matrix ?? (.Take(numExistingNotes), .Take(numExistingNotes))
+                let upRight = self.matrix ?? (.Take(numExistingNotes), .TakeLast(numExistingPages))
+                let downLeft = self.matrix ?? (.TakeLast(numExistingPages), .Take(numExistingNotes))
+                let downRight = self.matrix ?? (.TakeLast(numExistingPages), .TakeLast(numExistingPages))
+                let left = upLeft === (Array(similarities[0..<numExistingNotes]) === downLeft)
+                let right = upRight === (Array(similarities[numExistingNotes..<similarities.count]) === downRight)
+                var longSimilarities = similarities
+                
+                longSimilarities.insert(0, at: numExistingNotes)
+                
+                self.matrix = left ||| (longSimilarities ||| right)
+            }
         }
     }
+
+    /// Remove a data point (webpage or note, currently used only for pages) from the similarity matrix
+    ///
+    /// - Parameters:
+    ///   - Index: The index of the data point to be removed
+    func removeDataPoint(index: Int) throws {
+        guard matrix.rows == matrix.cols else {
+          throw MatrixError.matrixNotSquare
+        }
+        
+        guard index <= matrix.rows else {
+          throw MatrixError.pageOutOfDimensions
+        }
+
+        var indecesToKeep = [Int](0..<self.matrix.rows)
+        
+        indecesToKeep = Array(Set(indecesToKeep).subtracting(Set([index]))).sorted()
+        self.matrix = self.matrix ?? (.Pos(indecesToKeep), .Pos(indecesToKeep))
+    }
+}
+
+actor test {
+    
+}
+
+
+// swiftlint:disable:next type_body_length
+public class Cluster {
+    let thresholdComparison = 0.4
+    var pages = [Page]()
+    var notes = [ClusteringNote]()
+    // As the adjacency matrix is never touched on its own, just through the sub matrices, it does not need add or remove methods.
+    var adjacencyMatrix = Matrix([[0]])
+    var textualSimilarityMatrix = SimilarityMatrix()
+    @MainActor let modelInf = ModelInference()
 
     ///  Extract a submatrix from a matrix corresponding to a list of indeces to include,
     ///  both rows and columns
@@ -384,35 +404,6 @@ public class Cluster {
         return bestPredictedLabels
     }
 
-    ///  Compute the embedding of the given piece of text if the language of the text is detectable
-    ///  and if the OS is at least MacOS 11 and iOS 14.
-    ///
-    /// - Parameters:
-    ///   - text: The text that will be turned into a contextual vector (embedding)
-    /// - Returns: The embedding of the given piece of text as an optional and the dominating language of the text, as an optional.
-    func textualEmbeddingComputationWithNLEmbedding(text: String, completion: @escaping (Result<[Double], Error>)->()) {
-        DispatchQueue.main.async {
-            var content = text
-            var model_result = ModelInferenceResult()
-            var ret: Int32 = -1
-                
-            content.withUTF8 { cText in
-                ret = doModelInference(self.modelinf, cText.baseAddress, &model_result)
-            }
-                
-            if ret == 0 {
-                let vector = Array(UnsafeBufferPointer(start: model_result.weigths, count: Int(model_result.size)))
-                let dvector = vector.map{Double($0)}
-
-                completion(.success(dvector))
-            
-                return
-            }
-            
-            completion(.failure(CClusteringError.tokenizerInitialization))
-        }
-    }
-
     /// Compute the cosine similarity between two vectors
     ///
     /// - Parameters:
@@ -479,10 +470,9 @@ public class Cluster {
     ///   - index: The index of the data point within the corresponding vector (pages or notes)
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
-    func textualSimilarityProcess(index: Int, dataPointType: DataPoint, changeContent: Bool = false) throws {
+    func textualSimilarityProcess(index: Int, dataPointType: DataPoint) throws {
         var content: String
         var title: String
-        var scores = [Double](repeating: 0.0, count: self.textualSimilarityMatrix.matrix.rows)
         
         if dataPointType == .page {
             content = pages[index].cleanedContent ?? ""
@@ -492,11 +482,9 @@ public class Cluster {
             title = notes[index].title ?? ""
         }
         
-        let semaphore = DispatchSemaphore(value: 0)
         let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
         let splitTitle = regex.splitn(title)
         var titleAsArray: ArraySlice<String> = []
-        var err: Error? = nil
         
         if splitTitle.count > 1 {
             titleAsArray = splitTitle[0..<splitTitle.count-1]
@@ -504,44 +492,17 @@ public class Cluster {
             titleAsArray = splitTitle[0..<1]
         }
         
-        self.textualEmbeddingComputationWithNLEmbedding(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines)) { [weak self] result in
-            guard let self = self else {
-                return
-            }
-            
-            switch result {
-            case .failure(let error):
-                err = error
-                semaphore.signal()
-            case .success(let result):
-                scores = self.scoreTextualSimilarity(textualEmbedding: result, index: index, dataPointType: dataPointType, changeContent: changeContent)
-                
-                switch dataPointType {
-                case .page:
-                    self.pages[index].textEmbedding = result
-                case .note:
-                    self.notes[index].textEmbedding = result
-                }
-                
-                semaphore.signal()
-            }
+        let encodedText = try self.modelInf.encode(text: ((titleAsArray.map { $0.capitalized }).joined(separator: " ") + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
+        let scores = self.scoreTextualSimilarity(textualEmbedding: encodedText, index: index, dataPointType: dataPointType)
+        
+        switch dataPointType {
+        case .page:
+            self.pages[index].textEmbedding = encodedText
+        case .note:
+            self.notes[index].textEmbedding = encodedText
         }
         
-        semaphore.wait()
-        
-        if let err = err {
-            throw err
-        }
-        
-        if changeContent {
-            var indexToChange = index
-            
-            if dataPointType == .page {
-                indexToChange += self.notes.count
-            }
-            self.textualSimilarityMatrix.matrix[row: indexToChange] = scores
-            self.textualSimilarityMatrix.matrix[col: indexToChange] = scores
-        } else if self.pages.count + self.notes.count > 1 {
+        if self.pages.count + self.notes.count > 1 {
             try self.textualSimilarityMatrix.addDataPoint(similarities: scores, type: dataPointType, numExistingNotes: max(self.notes.count - 1, 0), numExistingPages: self.pages.count)
         }
     }
@@ -625,55 +586,29 @@ public class Cluster {
         return result
     }
 
-    public func removeNote(noteId: UUID) {
-        clusteringQueue.async {
-            if let noteIndex = self.findNoteInNotes(noteID: noteId) {
-                if self.adjacencyMatrix.rows > 1 {
-                    do {
-                        try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
-                        
-                        self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
-                    } catch { } // This is pretty bad
-                }
-                self.notes.remove(at: noteIndex)
+    public func removeNote(noteId: UUID) throws {
+        if let noteIndex = self.findNoteInNotes(noteID: noteId) {
+            if self.adjacencyMatrix.rows > 1 {
+                try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
+                
+                self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
             }
+            
+            self.notes.remove(at: noteIndex)
         }
     }
     
-    /// Remove pages (only) from the adjacency matrix but keep them by fixing them
-    /// to another page (only) which is the most similar at the specific moment
-    ///
-    /// - Parameters:
-    ///   - ranking: A list of all pages, ranked in the order of their score (from
-    ///             the lowest to the highest)
-    func remove(ranking: [UUID], activeSources: [UUID]? = nil, numPagesToRemove: Int = 3) throws {
-        var ranking = ranking
-        var pagesRemoved = 0
-        
-        if let activeSources = activeSources {
-            let rankingWithoutActive = ranking.filter { !activeSources.contains($0) }
-            
-            if rankingWithoutActive.count > 2 {
-                ranking = rankingWithoutActive
-            }
-        }
-        
-        while pagesRemoved < numPagesToRemove {
-            if let pageToRemove = ranking.first {
-                if let pageIndexToRemove = self.findPageInPages(pageID: pageToRemove) {
-                    try self.textualSimilarityMatrix.removeDataPoint(index: pageIndexToRemove + self.notes.count)
-                    self.pages.remove(at: pageIndexToRemove)
+    public func removePage(pageId: UUID) throws {
+        if let pageIndex = self.findPageInPages(pageID: pageId) {
+            if self.adjacencyMatrix.rows > 1 {
+               
+                    try self.textualSimilarityMatrix.removeDataPoint(index: pageIndex)
                     
-                    pagesRemoved += 1
-                    ranking = Array(ranking.dropFirst())
-                } else {
-                    ranking = Array(ranking.dropFirst())
-                }
-            } else {
-                break
+                    self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
+                
             }
             
-            self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
+            self.pages.remove(at: pageIndex)
         }
     }
     
@@ -686,7 +621,7 @@ public class Cluster {
     ///   - activeSources: array of all active sources
     /// - Returns: A dictionary of all notes and active sources (keys), the value for each is a dictionary of all pages
     ///             in the same group (keys) and the corresponding similarity (value)
-    func createSimilarities(pageGroups: [[UUID]], noteGroups: [[UUID]], activeSources: [UUID]?) -> [UUID: [UUID: Double]] {
+    func createSimilarities(pageGroups: [[UUID]], noteGroups: [[UUID]]) -> [UUID: [UUID: Double]] {
         var similarities = [UUID: [UUID: Double]]()
         
         // Start by including similarities with notes
@@ -703,18 +638,15 @@ public class Cluster {
                 }
             }
             
-            if let activeSources = activeSources {
-                for pageId in pageGroup {
-                    if activeSources.contains(pageId),
-                       let pageIndex = self.findPageInPages(pageID: pageId) {
-                           similarities[pageId] = [UUID:Double]()
-                           
-                           for suggestedPageId in pageGroup.filter({ $0 != pageId }) {
-                               if let suggestedPageIndex = self.findPageInPages(pageID: suggestedPageId) {
-                                   similarities[pageId]?[suggestedPageId] = self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count]
-                               }
-                           }
-                    }
+            for pageId in pageGroup {
+                if let pageIndex = self.findPageInPages(pageID: pageId) {
+                   similarities[pageId] = [UUID:Double]()
+                   
+                   for suggestedPageId in pageGroup.filter({ $0 != pageId }) {
+                       if let suggestedPageIndex = self.findPageInPages(pageID: suggestedPageId) {
+                           similarities[pageId]?[suggestedPageId] = self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count]
+                       }
+                   }
                 }
             }
         }
@@ -729,7 +661,7 @@ public class Cluster {
     ///   - note: The note to be added, in case the data point is a note
     ///   - replaceContent: A flag to declare that the request comes from PnS, the page
     ///                     already exists, and the text considered for the page should be replaced.
-    func updateSubMatrices(page: Page? = nil, note: ClusteringNote? = nil, replaceContent: Bool = false) throws {
+    func updateSubMatrices(page: Page? = nil, note: ClusteringNote? = nil) throws {
         // Decide if the received data point in a page or a note
         var dataPointType: DataPoint = .note
         
@@ -737,75 +669,36 @@ public class Cluster {
             dataPointType = .page
         }
         
-        // Update page, if already exists
-        if let page = page,
-           let id_index = self.findPageInPages(pageID: page.id) {
-                if replaceContent,
-                   let newContent = page.cleanedContent {
-                       // Update content through PnS
-                       let totalContentTokenized = (newContent + " " + (self.pages[id_index].cleanedContent ?? ""))
-                
-                       self.pages[id_index].cleanedContent = totalContentTokenized
-                
-                       do {
-                           try self.textualSimilarityProcess(index: id_index, dataPointType: dataPointType, changeContent: true)
-                       } catch let error {
-                           throw error
-                       }
-                   }
-        // Updating existing note
-        } else if let note = note,
-                  let id_index = self.findNoteInNotes(noteID: note.id) {
-                      do {
-                          if let newContent = note.originalContent {
-                              self.notes[id_index].cleanedContent = newContent.joined(separator: " ")
-                          }
-                
-                          if let newTitle = note.title {
-                              self.notes[id_index].title = newTitle
-                          }
-                          
-                          try self.textualSimilarityProcess(index: id_index, dataPointType: .note, changeContent: true)
-                      } catch let error {
-                          throw error
-                      }
-        // New page or note
-        } else {
-            var newIndex = self.pages.count
+        var newIndex = self.pages.count
+        
+        if let page = page {
+            self.pages.append(page)
             
-            if let page = page {
-                self.pages.append(page)
-                
-                if let title = self.pages[newIndex].title {
-                    self.pages[newIndex].title = title
-                }
-                
-                if page.cleanedContent == nil {
-                    self.pages[newIndex].cleanedContent = (self.pages[newIndex].originalContent ?? [""]).joined(separator: " ")
-                    self.pages[newIndex].originalContent = nil
-                }
-                
-                self.pages[newIndex].domain = page.url?.host
-            } else if let note = note {
-                newIndex = self.notes.count
-                
-                self.notes.append(note)
-                
-                if let title = self.notes[newIndex].title {
-                    self.notes[newIndex].title = title
-                }
-                do {
-                    self.notes[newIndex].cleanedContent = (self.notes[newIndex].originalContent ?? [""]).joined(separator: " ")
-                    self.notes[newIndex].originalContent = nil
-                }
+            if let title = self.pages[newIndex].title {
+                self.pages[newIndex].title = title
             }
-            // Add to submatrices
+            
+            if page.cleanedContent == nil {
+                self.pages[newIndex].cleanedContent = (self.pages[newIndex].originalContent ?? [""]).joined(separator: " ")
+                self.pages[newIndex].originalContent = nil
+            }
+            
+            self.pages[newIndex].domain = page.url?.host
+        } else if let note = note {
+            newIndex = self.notes.count
+            
+            self.notes.append(note)
+            
+            if let title = self.notes[newIndex].title {
+                self.notes[newIndex].title = title
+            }
             do {
-                try self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
-            } catch let error {
-                throw error
+                self.notes[newIndex].cleanedContent = (self.notes[newIndex].originalContent ?? [""]).joined(separator: " ")
+                self.notes[newIndex].originalContent = nil
             }
         }
+        // Add to submatrices
+        try self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)
     }
     
     /// The main function to access the package, adding a data point (page or note)
@@ -824,71 +717,27 @@ public class Cluster {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, activeSources: [UUID]? = nil, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
-        clusteringQueue.async {
-            // Check that we are adding exactly one object
-            if page != nil && note != nil {
-                self.mainQueue.async {
-                    completion(.failure(AdditionError.moreThanOneObjectToAdd))
-                }
-                
-                return
-            }
-            
-            if page == nil && note == nil {
-                self.mainQueue.async {
-                    completion(.failure(AdditionError.noObjectsToAdd))
-                }
-                
-                return
-            }
-            
-            // If ranking is received, remove pages
-            if let ranking = ranking {
-                do {
-                    try self.remove(ranking: ranking, activeSources: activeSources)
-                } catch let error {
-                    self.mainQueue.async {
-                        completion(.failure(error))
-                    }
-                    
-                    return
-                }
-            }
-            
-            // Updating all sub-matrices
-            do {
-                try self.updateSubMatrices(page: page, note: note, replaceContent: replaceContent)
-                
-                self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
-            } catch {
-                self.mainQueue.async {
-                    completion(.failure(error))
-                }
-                
-                return
-            }
-            
-            var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
-            
-            do {
-                predictedClusters = try self.spectralClustering()
-            } catch let error {
-                self.mainQueue.async {
-                    completion(.failure(error))
-                }
-                
-                return
-            }
-            
-            let stablizedClusters = self.stabilize(predictedClusters)
-            let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
-            let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
-            
-            self.mainQueue.async {
-                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
-            }
+    public func add(page: Page? = nil, note: ClusteringNote? = nil) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]) {
+        // Check that we are adding exactly one object
+        if page != nil && note != nil {
+            throw AdditionError.moreThanOneObjectToAdd
         }
+            
+        if page == nil && note == nil {
+            throw AdditionError.noObjectsToAdd
+        }
+            
+        // Updating all sub-matrices
+        try self.updateSubMatrices(page: page, note: note)
+                
+        self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
+        
+        let predictedClusters = try self.spectralClustering()
+        let stablizedClusters = self.stabilize(predictedClusters)
+        let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+        let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes)
+
+        return (pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)
     }
 
     /// Stabilize clustering results to maintain order from one clustering to another

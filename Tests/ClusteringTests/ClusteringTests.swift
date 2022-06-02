@@ -92,7 +92,7 @@ class ClusteringTests: XCTestCase {
         expect(cossim).to(beCloseTo(0.9847319278346619, within: 0.0001))
     }
     
-    func testGoogleSearchClustering() throws {
+    func testGoogleSearchClustering() async throws {
         let cluster = Cluster()
         var UUIDs: [UUID] = []
         
@@ -111,29 +111,16 @@ class ClusteringTests: XCTestCase {
             Page(id: UUIDs[7], parentId: nil, url: URL(string: "https://www.google.com/search?q=musique%20classique")!, title: "musique classique - Google Search")
         ]
         var clusteredPageIds: [[UUID]] = []
-        let expectation = self.expectation(description: "Add page expectation")
         
         for page in pages.enumerated() {
-            cluster.add(page: page.element, ranking: nil, completion: { result in
-                switch result {
-                case .failure(let error):
-                    XCTFail(error.localizedDescription)
-                case .success(let result):
-                    clusteredPageIds = result.pageGroups
-                }
-                if page.offset == pages.count - 1 {
-                    expectation.fulfill()
-                }
-            })
+            clusteredPageIds = try await cluster.add(page: page.element).pageGroups
         }
-        
-        wait(for: [expectation], timeout: 10)
         
         expect(clusteredPageIds.count).to(equal(5))
     }
 
     /// Test that scoring of textual similarity between two texts is done correctly. At the same opportunity, test all similarity matrices (entities and navigation, in addition to text)
-    func testScoreTextualEmbedding() throws {
+    func testScoreTextualEmbedding() async throws {
         let cluster = Cluster()
         var UUIDs: [UUID] = []
         
@@ -149,27 +136,11 @@ class ClusteringTests: XCTestCase {
             Page(id: UUIDs[4], parentId: nil, url: URL(string: "https://www.youtube.com")!, title:nil, originalContent: ["All"])
         ]
         var clusteredPageIds: [[UUID]] = []
-        let expectation = self.expectation(description: "Add page expectation")
         
         for page in pages.enumerated() {
-            cluster.add(page: page.element, ranking: nil, completion: { result in
-                switch result {
-                case .failure(let error):
-                    if error as! Cluster.AdditionError != .skippingToNextAddition {
-                        XCTFail(error.localizedDescription)
-                    }
-                case .success(let result):
-                    clusteredPageIds = result.pageGroups
-                }
-                
-                if page.offset == pages.count - 1 {
-                    expectation.fulfill()
-                }
-            })
+            clusteredPageIds = try await cluster.add(page: page.element).pageGroups
         }
         
-        wait(for: [expectation], timeout: 10)
-            
         expect(clusteredPageIds.count).to(equal(2))
     }
 
@@ -361,10 +332,9 @@ class ClusteringTests: XCTestCase {
                          Page(id: UUID(), parentId: nil, title: "Third page", cleanedContent: "page")
         ]
         
-        let activeSources = [cluster.pages[0].id]
         let noteGroups = [[cluster.notes[0].id], [cluster.notes[1].id], [cluster.notes[2].id], [], []]
         let pageGroups = [[], [cluster.pages[2].id], [], [cluster.pages[0].id, cluster.pages[1].id]]
-        let mySimilarities = cluster.createSimilarities(pageGroups: pageGroups, noteGroups: noteGroups, activeSources: activeSources)
+        let mySimilarities = cluster.createSimilarities(pageGroups: pageGroups, noteGroups: noteGroups)
         
         expect(mySimilarities[cluster.notes[0].id]) == [:]
         expect(mySimilarities[cluster.notes[1].id]) == [cluster.pages[2].id: 0.5]
@@ -453,24 +423,12 @@ class ClusteringTests: XCTestCase {
         expect(cluster.notes[1].id) == noteUUIDs[2]
     }*/
     
-    func testGetExportInformationForIdPage() throws {
+    func testGetExportInformationForIdPage() async throws {
         let cluster = Cluster()
         let pageId = UUID()
-        let expectation = self.expectation(description: "Add page expectation")
         let myPage = Page(id: pageId, parentId: nil, title: "Roger Federer", cleanedContent: "He was born on 8 August 1981 in Basel.")
         
-        cluster.add(page: myPage, ranking: nil, completion: { result in
-            switch result {
-            case .failure(let error):
-                XCTFail(error.localizedDescription)
-            case .success(let result):
-                _ = result.0
-            }
-            
-            expectation.fulfill()
-        })
-        
-        wait(for: [expectation], timeout: 10)
+        _ = try await cluster.add(page: myPage)
         
         let pageInformation = cluster.getExportInformationForId(id: pageId)
         let expectedInformation = InformationForId(title: "Roger Federer", cleanedContent: "He was born on 8 August 1981 in Basel.")
@@ -482,24 +440,12 @@ class ClusteringTests: XCTestCase {
         expect(emptyInformation) == InformationForId()
     }
 
-    func testGetInformationForIdNote() throws {
+    func testGetInformationForIdNote() async throws {
         let cluster = Cluster()
         let noteId = UUID()
-        let expectation = self.expectation(description: "Add note expectation")
         let myNote = ClusteringNote(id: noteId, title: "Roger Federer", content: ["Federer has played in an era where he dominated men's tennis along with Rafael Nadal and Novak Djokovic. Referred to as the Big Three, they are considered by some to be the three greatest tennis players of all time.[c] A Wimbledon junior champion in 1998, Federer won his first major singles title at Wimbledon in 2003 at age 21. In 2004, he won three of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, he made 18 out of 19 major singles finals. During this span, he won five consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-up finishes to Nadal, his main rival until 2010. At age 27, he surpassed Pete Sampras's record of 14 major men's singles titles at Wimbledon in 2009."])
         
-        cluster.add(note: myNote, ranking: nil, completion: { result in
-            switch result {
-            case .failure(let error):
-                XCTFail(error.localizedDescription)
-            case .success(let result):
-                _ = result.0
-            }
-            
-            expectation.fulfill()
-        })
-        
-        wait(for: [expectation], timeout: 10)
+        _ = try await cluster.add(note: myNote)
         
         let noteInformation = cluster.getExportInformationForId(id: noteId)
         let expectedInformation = InformationForId(title: "Roger Federer", cleanedContent: "Federer has played in an era where he dominated men\'s tennis along with Rafael Nadal and Novak Djokovic. Referred to as the Big Three, they are considered by some to be the three greatest tennis players of all time.[c] A Wimbledon junior champion in 1998, Federer won his first major singles title at Wimbledon in 2003 at age 21. In 2004, he won three of the four major singles titles and the ATP Finals,[d] a feat he repeated in 2006 and 2007. From 2005 to 2010, he made 18 out of 19 major singles finals. During this span, he won five consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-up finishes to Nadal, his main rival until 2010. At age 27, he surpassed Pete Sampras\'s record of 14 major men\'s singles titles at Wimbledon in 2009.")
