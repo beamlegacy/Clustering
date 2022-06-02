@@ -113,7 +113,6 @@ public class Cluster {
         case tokenizerInitialization
     }
 
-    let additionQueue = DispatchQueue(label: "additionQueue")
     let clusteringQueue = DispatchQueue(label: "clusteringQueue")
     let mainQueue: DispatchQueue
     let thresholdComparison = 0.4
@@ -627,7 +626,7 @@ public class Cluster {
     }
 
     public func removeNote(noteId: UUID) {
-        additionQueue.async {
+        clusteringQueue.async {
             if let noteIndex = self.findNoteInNotes(noteID: noteId) {
                 if self.adjacencyMatrix.rows > 1 {
                     do {
@@ -826,7 +825,7 @@ public class Cluster {
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
     public func add(page: Page? = nil, note: ClusteringNote? = nil, ranking: [UUID]?, activeSources: [UUID]? = nil, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
-        additionQueue.async {
+        clusteringQueue.async {
             // Check that we are adding exactly one object
             if page != nil && note != nil {
                 self.mainQueue.async {
@@ -870,26 +869,24 @@ public class Cluster {
                 return
             }
             
-            self.mainQueue.async {
-                self.clusteringQueue.async {
-                    var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
-                    
-                    do {
-                        predictedClusters = try self.spectralClustering()
-                    } catch let error {
-                        completion(.failure(error))
-                        
-                        return
-                    }
-                    
-                    let stablizedClusters = self.stabilize(predictedClusters)
-                    let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
-                    let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
-                    
-                    self.mainQueue.async {
-                        completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
-                    }
+            var predictedClusters = zeros(1, self.adjacencyMatrix.rows).flat.map { Int($0) }
+            
+            do {
+                predictedClusters = try self.spectralClustering()
+            } catch let error {
+                self.mainQueue.async {
+                    completion(.failure(error))
                 }
+                
+                return
+            }
+            
+            let stablizedClusters = self.stabilize(predictedClusters)
+            let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+            let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes, activeSources: activeSources)
+            
+            self.mainQueue.async {
+                completion(.success((pageGroups: resultPages, noteGroups: resultNotes, flag: .none, similarities: similarities)))
             }
         }
     }
