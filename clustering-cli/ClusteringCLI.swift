@@ -67,146 +67,113 @@ extension ClusteringCLI {
     
     mutating func run() async throws {
         let cluster = Cluster()
-        var pages: [Page] = []
-        var notes: [ClusteringNote] = []
+        var pages: [UUID: Page] = [:]
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
-        var clusteredNoteIds: [[UUID]] = []
         var id2colours: [String: String] = [:]
+        var tmpId2colours: [String: String] = [:]
         
         for row in csvFile.records {
             if let id = row["id"], let tabColouringGroupId = row["tabColouringGroupId"], let userCorrectionGroupId = row["userCorrectionGroupId"] {
                 if tabColouringGroupId != "<???>" {
                     if userCorrectionGroupId == "<???>" {
                         id2colours[id] = tabColouringGroupId
+                    } else {
+                        tmpId2colours[id] = userCorrectionGroupId
                     }
                 }
             }
-            if row["noteName"] != "<???>" {
-                if let noteId = row["id"], let title = row["title"], let content = row["cleanedContent"] {
-                    guard let convertedPageId = UUID(uuidString: noteId) else {
-                        return
-                    }
-                    notes.append(ClusteringNote(id: convertedPageId, title: title.replacingOccurrences(of: " and some text", with: ""), content: [content]))
-                }
-            } else {
-                if let pageId = row["id"], let parentId = row["parentId"], let title = row["title"], let originalContent = row["cleanedContent"], let url = row["url"] {
+            if row["noteName"] == "<???>" {
+                if let isOpenAtExport = row["isOpenAtExport"], let pageId = row["id"], let title = row["title"], let originalContent = row["cleanedContent"], let url = row["url"] {
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
-                    let convertedParentId = parentId == "<???>" ? nil: UUID(uuidString: parentId)
+                    let convertedIsOpenAtExport = isOpenAtExport == "false" ? false: true
                     
-                    
-                    pages.append(Page(id: convertedPageId, parentId: convertedParentId, url: URL(string: url), title: title.replacingOccurrences(of: " and some text", with: ""), originalContent: [originalContent]))
+                    if convertedIsOpenAtExport {
+                        pages[convertedPageId] = Page(id: convertedPageId, url: URL(string: url)!, title: title.replacingOccurrences(of: " and some text", with: ""), content: originalContent)
+                    }
+                }
+            }
+        }
+
+        for (key, value) in tmpId2colours {
+            if !id2colours.values.contains(value) {
+                id2colours[key] = value
+            }
+        }
+
+        for page in pages.values {
+            print("Add Page: " + page.id.description)
+            fflush(stdout)
+            clusteredPageIds = try await cluster.add(page: page).pageGroups
+        }
+                
+        var outputCsv: [[String]] = [csvFile.headers]
+        var groupId2colours: [String:String] = [:]
+        for c in clusteredPageIds.enumerated() {
+            print("Cluster \(c.offset):")
+            for p in c.element {
+                if let u = pages[p] {
+                    print("\t\(u.url)")
                 }
             }
         }
         
-        var result: (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) = (pageGroups: [], noteGroups: [], similarities: [:])
-        
-        for note in notes {
-            print("Add Note: " + note.id.description)
-            fflush(stdout)
-            result = try await cluster.add(note: note)
-        }
-            
-        for page in pages {
-            print("Add Page: " + page.id.description)
-            fflush(stdout)
-            result = try await cluster.add(page: page)
-        }
-        
-        clusteredNoteIds = result.noteGroups
-        clusteredPageIds = result.pageGroups
-                
-        var outputCsv: [[String]] = [csvFile.headers]
-        var groupId2colours: [String:String] = [:]
-        var emptyClusters = 0
-        
         if let columns = csvFile[column: "id"] {
             for rowId in columns.enumerated() {
-                if let convertedId = UUID(uuidString: rowId.element) {
-                    let info = cluster.getExportInformationForId(id: convertedId)
-                    
-                    if info.isEmpty {
-                        outputCsv.append(csvFile[rowId.offset])
-                        emptyClusters += 1
-                    } else {
+                if csvFile[rowId.offset][4] == "false" {
+                    outputCsv.append(csvFile[rowId.offset])
+                } else {
+                    if let convertedId = UUID(uuidString: rowId.element) {
                         var newRow: [String] = []
                         
                         newRow.append(csvFile[rowId.offset][0])
                         newRow.append(csvFile[rowId.offset][1])
+                        newRow.append(csvFile[rowId.offset][2])
+                        newRow.append(csvFile[rowId.offset][3])
                         
-                        var navigationGroupId = findGroupForID(id: convertedId, groups: clusteredPageIds)
-                        var groupId = -1
-                        
-                        if navigationGroupId != -1 {
-                            groupId = navigationGroupId + emptyClusters
-                        } else {
-                            groupId = findGroupForID(id: convertedId, groups: clusteredNoteIds)
-                            navigationGroupId = -1
-                        }
-                        
-
-                        newRow.append(String(groupId))
-                        newRow.append(String(navigationGroupId))
+                        let groupId = self.findGroupForID(id: convertedId, groups: clusteredPageIds)
+                        var currentColor = ""
                         
                         if csvFile[rowId.offset][4] == "<???>" && csvFile[rowId.offset][5] == "<???>" {
                             newRow.append(csvFile[rowId.offset][4])
-                            newRow.append(csvFile[rowId.offset][5])
-                        } else {
-                            var currentColor = ""
-                            if let color = groupId2colours[String(groupId)] {
+                        } else if let color = groupId2colours[String(groupId)] {
+                            currentColor = color
+                            newRow.append(color)
+                            groupId2colours[String(groupId)] = color
+                        } else if let color = id2colours[rowId.element] {
+                            if !groupId2colours.values.contains(color) {
                                 currentColor = color
                                 newRow.append(color)
                                 groupId2colours[String(groupId)] = color
-                            } else if let color = id2colours[rowId.element] {
-                                currentColor = color
-                                newRow.append(color)
-                                groupId2colours[String(groupId)] = color
-                                for (key, value) in id2colours where value == color {
-                                    id2colours.removeValue(forKey: key)
-                                }
                             } else {
                                 currentColor = UUID().description
+                                groupId2colours[String(groupId)] = currentColor
                                 newRow.append(currentColor)
                             }
-                            
-                            if csvFile[rowId.offset][4] == currentColor && csvFile[rowId.offset][5] == "<???>" {
-                                newRow.append("<???>")
-                            } else if csvFile[rowId.offset][5] == currentColor {
-                                newRow.append("<???>")
-                            } else if csvFile[rowId.offset][4] != currentColor && csvFile[rowId.offset][5] == "<???>" {
-                                newRow.append(csvFile[rowId.offset][4])
-                            } else {
-                                newRow.append(csvFile[rowId.offset][5])
-                            }
-                        }
-
-                        newRow.append(info.title ?? csvFile[rowId.offset][6])
-                        newRow.append(info.cleanedContent ?? csvFile[rowId.offset][7])
-                        
-                        if let entitiesInText = info.entitiesInText {
-                            newRow.append(entitiesInText.description)
                         } else {
-                            newRow.append(csvFile[rowId.offset][8])
+                            currentColor = UUID().description
+                            groupId2colours[String(groupId)] = currentColor
+                            newRow.append(currentColor)
                         }
                         
-                        if let entitiesInTitle = info.entitiesInTitle {
-                            newRow.append(entitiesInTitle.description)
+                        if csvFile[rowId.offset][4] != "<???>" && csvFile[rowId.offset][5] == "<???>" && csvFile[rowId.offset][4] != currentColor {
+                            newRow.append(csvFile[rowId.offset][4])
+                        } else if csvFile[rowId.offset][5] == currentColor {
+                            newRow.append("<???>")
                         } else {
-                            newRow.append(csvFile[rowId.offset][9])
+                            newRow.append(csvFile[rowId.offset][5])
                         }
                         
+                        newRow.append(csvFile[rowId.offset][6])
+                        newRow.append(csvFile[rowId.offset][7])
+                        newRow.append(csvFile[rowId.offset][8])
+                        newRow.append(csvFile[rowId.offset][9])
                         newRow.append(csvFile[rowId.offset][10])
                         newRow.append(csvFile[rowId.offset][11])
-                        newRow.append(convertedId.description)
-                        
-                        if let parentId = info.parentId {
-                            newRow.append(parentId.description)
-                        } else {
-                            newRow.append(csvFile[rowId.offset][13])
-                        }
+                        newRow.append(csvFile[rowId.offset][12])
+                        newRow.append(csvFile[rowId.offset][13])
                         
                         if newRow.count != csvFile[rowId.offset].count {
                             print("Err: \(newRow.count) is different from \(csvFile[rowId.offset].count)")

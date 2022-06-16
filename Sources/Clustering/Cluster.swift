@@ -4,70 +4,6 @@ import Accelerate
 import CClustering
 
 
-extension NSRegularExpression {
-    /// An array of substring of the given string, separated by this regular expression, restricted to returning at most n items.
-    /// If n substrings are returned, the last substring (the nth substring) will contain the remainder of the string.
-    /// - Parameter str: String to be matched
-    /// - Parameter n: If `n` is specified and n != -1, it will be split into n elements else split into all occurences of this pattern
-    func splitn(_ str: String, _ n: Int = -1) -> [String] {
-        let range = NSRange(location: 0, length: str.count)
-        let matches = self.matches(in: str, range: range);
-        var result = [String]()
-        
-        if (n != -1 && n < 2) || matches.isEmpty  {
-            return [str]
-        }
-        
-        if let first = matches.first?.range {
-            if first.location == 0 {
-                result.append("")
-            }
-            
-            if first.location != 0 {
-                let _range = NSRange(location: 0, length: first.location)
-            
-                result.append(String(str[Range(_range, in: str)!]))
-            }
-        }
-        
-        for (cur, next) in zip(matches, matches[1...]) {
-            let loc = cur.range.location + cur.range.length
-            
-            if n != -1 && result.count + 1 == n {
-                let _range = NSRange(location: loc, length: str.count - loc)
-            
-                result.append(String(str[Range(_range, in: str)!]))
-                
-                return result
-                
-            }
-            
-            let len = next.range.location - loc
-            let _range = NSRange(location: loc, length: len)
-            
-            result.append(String(str[Range(_range, in: str)!]))
-        }
-        
-        if let last = matches.last?.range, !(n != -1 && result.count >= n) {
-            let lastIndex = last.length + last.location
-            
-            if lastIndex == str.count {
-                result.append("")
-            }
-            
-            if lastIndex < str.utf8.count {
-                let _range = NSRange(location: lastIndex, length: str.count - lastIndex)
-            
-                result.append(String(str[Range(_range, in: str)!]))
-            }
-        }
-        
-        return result;
-    }
-    
-}
-
-
 enum DataPoint {
     case page
     case note
@@ -95,16 +31,22 @@ enum CClusteringError: Error {
     case tokenizerInitialization
 }
 
+enum AvailableEmbedding {
+    case onlyTitle
+    case onlyContent
+    case titleAndContent
+}
+
 
 class ModelInference {
     lazy var model: UnsafeMutableRawPointer! = {
-        guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
+        /*guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
            var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
         else {
           fatalError("Resources not found")
-        }
-        //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
-        //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+        }*/
+        var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
+        var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
         var model: UnsafeMutableRawPointer!
         
         modelPath.withUTF8 { cModelPath in
@@ -152,11 +94,11 @@ public class SimilarityMatrix {
     ///   - numExistingPages: The number of pages already existing in the matrix
     func addDataPoint(similarities: [Double], type: DataPoint, numExistingNotes: Int, numExistingPages: Int) throws {
         guard matrix.rows == matrix.cols else {
-          throw MatrixError.matrixNotSquare
+            throw MatrixError.matrixNotSquare
         }
         
         guard matrix.rows == similarities.count else {
-          throw MatrixError.dimensionsNotMatching
+            throw MatrixError.dimensionsNotMatching
         }
 
         var whereToAdd: WhereToAdd?
@@ -227,14 +169,10 @@ public class SimilarityMatrix {
     }
 }
 
-actor test {
-    
-}
-
 
 // swiftlint:disable:next type_body_length
 public class Cluster {
-    let thresholdComparison = 0.4
+    let thresholdComparison = 0.3
     var pages = [Page]()
     var notes = [ClusteringNote]()
     // As the adjacency matrix is never touched on its own, just through the sub matrices, it does not need add or remove methods.
@@ -403,6 +341,16 @@ public class Cluster {
 
         return res
     }
+    
+    func meanVectors(vec1: [Double], vec2: [Double]) -> [Double] {
+        var res: [Double] = []
+        
+        for (val1, val2) in zip(vec1, vec2) {
+            res.append((val1 + val2) / 2)
+        }
+        
+        return res
+    }
 
     /// Compute the cosine similarity of the textual embedding of the current data point
     /// against all existing data point
@@ -414,35 +362,73 @@ public class Cluster {
     ///   - dataPointType: page or note
     ///   - changeContent: Is this a part of a content changing operation (rather than addition)
     /// - Returns: A list of cosine similarity scores
-    func scoreTextualSimilarity(textualEmbedding: [Double], index: Int, dataPointType: DataPoint, changeContent: Bool = false) -> [Double] {
+    func scoreSimilarity(embedding: [Double], index: Int, dataPointType: DataPoint, typeEmbedding: AvailableEmbedding) -> [Double] {
         var scores = [Double]()
         for note in notes.enumerated() {
-            if dataPointType == . note {
-                if !changeContent && note.offset == index {
+            if dataPointType == .note {
+                if note.offset == index {
                     break
                 }
                 
                 scores.append(-1.0)
-            } else if let textualVectorID = note.element.textEmbedding {
-                scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
             } else {
-                scores.append(0.0)
+                switch typeEmbedding {
+                case .titleAndContent:
+                    if !note.element.meanTitleContentEmbedding.isEmpty {
+                        scores.append(self.cosineSimilarity(vector1: note.element.meanTitleContentEmbedding, vector2: embedding))
+                    } else if !note.element.titleEmbedding.isEmpty {
+                        scores.append(self.cosineSimilarity(vector1: note.element.titleEmbedding, vector2: embedding))
+                    } else if !note.element.contentEmbedding.isEmpty {
+                        scores.append(self.cosineSimilarity(vector1: note.element.contentEmbedding, vector2: embedding))
+                    } else {
+                        scores.append(0.0)
+                    }
+                case .onlyContent:
+                    if !note.element.contentEmbedding.isEmpty {
+                        scores.append(self.cosineSimilarity(vector1: note.element.contentEmbedding, vector2: embedding))
+                    } else {
+                        scores.append(0.0)
+                    }
+                case .onlyTitle:
+                    if !note.element.titleEmbedding.isEmpty && typeEmbedding == .onlyTitle {
+                        scores.append(self.cosineSimilarity(vector1: note.element.titleEmbedding, vector2: embedding))
+                    } else {
+                        scores.append(0.0)
+                    }
+                }
             }
         }
-
+        
         for page in pages.enumerated() {
             // The textual vector might be empty, when the OS is not up to date
             // then the score will be 0.0
             if page.offset == index && dataPointType == .page {
-                if changeContent {
-                    scores.append(0.0)
+                break
+            }
+            
+            switch typeEmbedding {
+            case .titleAndContent:
+                if !page.element.meanTitleContentEmbedding.isEmpty {
+                    scores.append(self.cosineSimilarity(vector1: page.element.meanTitleContentEmbedding, vector2: embedding))
+                } else if !page.element.titleEmbedding.isEmpty {
+                    scores.append(self.cosineSimilarity(vector1: page.element.titleEmbedding, vector2: embedding))
+                } else if !page.element.contentEmbedding.isEmpty {
+                    scores.append(self.cosineSimilarity(vector1: page.element.contentEmbedding, vector2: embedding))
                 } else {
-                    break
+                    scores.append(0.0)
                 }
-            } else if let textualVectorID = page.element.textEmbedding {
-                scores.append(self.cosineSimilarity(vector1: textualVectorID, vector2: textualEmbedding))
-            } else {
-                scores.append(0.0)
+            case .onlyContent:
+                if !page.element.contentEmbedding.isEmpty {
+                    scores.append(self.cosineSimilarity(vector1: page.element.contentEmbedding, vector2: embedding))
+                } else {
+                    scores.append(0.0)
+                }
+            case .onlyTitle:
+                if !page.element.titleEmbedding.isEmpty && typeEmbedding == .onlyTitle {
+                    scores.append(self.cosineSimilarity(vector1: page.element.titleEmbedding, vector2: embedding))
+                } else {
+                    scores.append(0.0)
+                }
             }
         }
         
@@ -460,35 +446,48 @@ public class Cluster {
         var title: String
         
         if dataPointType == .page {
-            content = pages[index].cleanedContent ?? ""
-            title = pages[index].title ?? ""
+            content = pages[index].content
+            title = pages[index].title
         } else {
-            content = notes[index].cleanedContent ?? ""
-            title = notes[index].title ?? ""
+            content = notes[index].content
+            title = notes[index].title
         }
         
-        if !title.isEmpty {
-            let regex = try! NSRegularExpression(pattern: "\\s*[-\\|]\\s+")
-            let splitTitle = regex.splitn(title)
-            var titleAsArray: ArraySlice<String> = []
+        var meanTitleContentEmbedding: [Double] = []
+        var contentEmbedding: [Double] = []
+        var titleEmbedding: [Double] = []
+        var finalEmbedding: [Double] = []
+        var typeEmbedding: AvailableEmbedding
+        var scores: [Double] = []
+        
+        if !content.isEmpty && !title.isEmpty {
+            contentEmbedding = try await self.modelInf.encode(text: content)
+            titleEmbedding = try await self.modelInf.encode(text: title)
             
-            if splitTitle.count > 1 {
-                titleAsArray = splitTitle[0..<splitTitle.count-1]
-            } else {
-                titleAsArray = splitTitle[0..<1]
-            }
-            
-            title = (titleAsArray.map { $0.capitalized }).joined(separator: " ")
+            meanTitleContentEmbedding = self.meanVectors(vec1: contentEmbedding, vec2: titleEmbedding)
+            finalEmbedding = meanTitleContentEmbedding
+            typeEmbedding = AvailableEmbedding.titleAndContent
+        } else if !content.isEmpty && title.isEmpty {
+            contentEmbedding = try await self.modelInf.encode(text: content)
+            finalEmbedding = contentEmbedding
+            typeEmbedding = AvailableEmbedding.onlyContent
+        } else {
+            titleEmbedding = try await self.modelInf.encode(text: title)
+            finalEmbedding = titleEmbedding
+            typeEmbedding = AvailableEmbedding.onlyTitle
         }
         
-        let encodedText = try await self.modelInf.encode(text: (title + " " + content).trimmingCharacters(in: .whitespacesAndNewlines))
-        let scores = self.scoreTextualSimilarity(textualEmbedding: encodedText, index: index, dataPointType: dataPointType)
+        scores = self.scoreSimilarity(embedding: finalEmbedding, index: index, dataPointType: dataPointType, typeEmbedding: typeEmbedding)
         
         switch dataPointType {
         case .page:
-            self.pages[index].textEmbedding = encodedText
+            self.pages[index].meanTitleContentEmbedding = meanTitleContentEmbedding
+            self.pages[index].contentEmbedding = contentEmbedding
+            self.pages[index].titleEmbedding = titleEmbedding
         case .note:
-            self.notes[index].textEmbedding = encodedText
+            self.notes[index].meanTitleContentEmbedding = meanTitleContentEmbedding
+            self.notes[index].contentEmbedding = contentEmbedding
+            self.notes[index].titleEmbedding = titleEmbedding
         }
         
         if self.pages.count + self.notes.count > 1 {
@@ -525,9 +524,9 @@ public class Cluster {
     /// - Returns: InformationForId struct with all relevant information
     public func getExportInformationForId(id: UUID) -> InformationForId {
         if let pageIndex = findPageInPages(pageID: id) {
-            return InformationForId(title: pages[pageIndex].title, cleanedContent: pages[pageIndex].cleanedContent, entitiesInText: pages[pageIndex].entities, entitiesInTitle: pages[pageIndex].entitiesInTitle, parentId: pages[pageIndex].parentId)
+            return InformationForId(title: pages[pageIndex].title, content: pages[pageIndex].content)
         } else if let noteIndex = findNoteInNotes(noteID: id) {
-            return InformationForId(title: notes[noteIndex].title, cleanedContent: notes[noteIndex].cleanedContent, entitiesInText: notes[noteIndex].entities, entitiesInTitle: notes[noteIndex].entitiesInTitle)
+            return InformationForId(title: notes[noteIndex].title, content: notes[noteIndex].content)
         } else {
             return InformationForId()
         }
@@ -575,7 +574,7 @@ public class Cluster {
         return result
     }
 
-    public func removeNote(noteId: UUID) throws {
+    public func removeNote(noteId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         if let noteIndex = self.findNoteInNotes(noteID: noteId) {
             if self.adjacencyMatrix.rows > 1 {
                 try self.textualSimilarityMatrix.removeDataPoint(index: noteIndex)
@@ -584,21 +583,41 @@ public class Cluster {
             }
             
             self.notes.remove(at: noteIndex)
+            
+            if self.notes.count > 0 {
+                let predictedClusters = try self.spectralClustering()
+                let stablizedClusters = self.stabilize(predictedClusters)
+                let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+                let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes)
+
+                return (pageGroups: resultPages, noteGroups: resultNotes, similarities: similarities)
+            }
         }
+        
+        return (pageGroups: [], noteGroups: [], similarities: [:])
     }
     
-    public func removePage(pageId: UUID) throws {
+    public func removePage(pageId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         if let pageIndex = self.findPageInPages(pageID: pageId) {
             if self.adjacencyMatrix.rows > 1 {
-               
-                    try self.textualSimilarityMatrix.removeDataPoint(index: pageIndex)
-                    
-                    self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
+                try self.textualSimilarityMatrix.removeDataPoint(index: pageIndex)
                 
+                self.adjacencyMatrix = self.binarise(matrix: self.textualSimilarityMatrix.matrix)
             }
             
             self.pages.remove(at: pageIndex)
+            
+            if self.pages.count > 0 {
+                let predictedClusters = try self.spectralClustering()
+                let stablizedClusters = self.stabilize(predictedClusters)
+                let (resultPages, resultNotes) = self.clusterizeIDs(labels: stablizedClusters)
+                let similarities = self.createSimilarities(pageGroups: resultPages, noteGroups: resultNotes)
+
+                return (pageGroups: resultPages, noteGroups: resultNotes, similarities: similarities)
+            }
         }
+        
+        return (pageGroups: [], noteGroups: [], similarities: [:])
     }
     
     /// A function to calculate the similarities of notes and active sources with all sources that are in the same group,
@@ -662,29 +681,12 @@ public class Cluster {
         
         if let page = page {
             self.pages.append(page)
-            
-            if let title = self.pages[newIndex].title {
-                self.pages[newIndex].title = title
-            }
-            
-            if page.cleanedContent == nil {
-                self.pages[newIndex].cleanedContent = (self.pages[newIndex].originalContent ?? [""]).joined(separator: " ")
-                self.pages[newIndex].originalContent = nil
-            }
-            
-            self.pages[newIndex].domain = page.url?.host
-        } else if let note = note {
+        }
+        
+        if let note = note {
             newIndex = self.notes.count
             
             self.notes.append(note)
-            
-            if let title = self.notes[newIndex].title {
-                self.notes[newIndex].title = title
-            }
-            do {
-                self.notes[newIndex].cleanedContent = (self.notes[newIndex].originalContent ?? [""]).joined(separator: " ")
-                self.notes[newIndex].originalContent = nil
-            }
         }
         // Add to submatrices
         try await self.textualSimilarityProcess(index: newIndex, dataPointType: dataPointType)

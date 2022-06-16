@@ -37,14 +37,19 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
     
     std::transform(ids.begin(), ids.end(), ids.begin(), [](int id){return id+1;});
     
-    ids.push_back(2);
-    
-    for (size_t i = ids.size() + 1;i < 512;i++) {
-        ids.push_back(1);
+    if (ids.size() > 510) {
+        ids.resize(510);
+        ids.push_back(2);
+    } else {
+        ids.push_back(2);
+        
+        for (size_t i = ids.size() + 1;i < 512;i++) {
+            ids.push_back(1);
+        }
     }
     
     ids.push_back(0);
-    
+    assert(ids.size() == 512);
     std::rotate(ids.rbegin(), ids.rbegin() + 1, ids.rend());
     
     DLDevice dev = {kDLMetal, 0};
@@ -82,7 +87,6 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         tvm::runtime::NDArray last_hidden_state = tvm::runtime::NDArray::Empty({1, 512, 384}, DLDataType{kDLFloat, 32, 1}, cpu);
         
         get_output(0, last_hidden_state);
-        
         Eigen::MatrixXf token_embeddings(ids.size(), 384);
         Eigen::MatrixXf input_mask_expanded(ids.size(), 384);
         Eigen::MatrixXf clamped_input_mask_expanded(1, 384);
@@ -99,7 +103,6 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         clamped_input_mask_expanded = input_mask_expanded.colwise().sum();
         clamped_input_mask_expanded = (clamped_input_mask_expanded.array() == 0.0).select(0.000000001, clamped_input_mask_expanded);
         final_output = ((token_embeddings.array() * input_mask_expanded.array()).matrix().colwise().sum()).array() / clamped_input_mask_expanded.array();
-
         result->weigths = new float[final_output.size()];
         
         std::memcpy(result->weigths, final_output.data(), sizeof(float)*final_output.size());
