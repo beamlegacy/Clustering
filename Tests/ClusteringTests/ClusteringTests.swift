@@ -202,8 +202,8 @@ class ClusteringTests: XCTestCase {
             (clusteredPageIds, clusteredNoteIds, _) = try await cluster.add(note: note)
         }
         
-        expect(clusteredPageIds.count).to(equal(4))
-        expect(clusteredNoteIds.count).to(equal(4))
+        expect(clusteredPageIds.count).to(equal(3))
+        expect(clusteredNoteIds.count).to(equal(3))
     }
 
     /// Test that similarities between notes/active-sources to suggestions are returned correctly, for the sake of correct scoring of suggestions

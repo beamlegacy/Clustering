@@ -37,19 +37,19 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
     
     std::transform(ids.begin(), ids.end(), ids.begin(), [](int id){return id+1;});
     
-    if (ids.size() > 510) {
-        ids.resize(510);
+    if (ids.size() > 126) {
+        ids.resize(126);
         ids.push_back(2);
     } else {
         ids.push_back(2);
         
-        for (size_t i = ids.size() + 1;i < 512;i++) {
+        for (size_t i = ids.size() + 1;i < 128;i++) {
             ids.push_back(1);
         }
     }
     
     ids.push_back(0);
-    assert(ids.size() == 512);
+    assert(ids.size() == 128);
     std::rotate(ids.rbegin(), ids.rbegin() + 1, ids.rend());
     
     DLDevice dev = {kDLMetal, 0};
@@ -60,10 +60,10 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         tvm::runtime::PackedFunc set_input = gmod.GetFunction("set_input");
         tvm::runtime::PackedFunc get_output = gmod.GetFunction("get_output");
         tvm::runtime::PackedFunc run = gmod.GetFunction("run");
-        tvm::runtime::NDArray input_ids = tvm::runtime::NDArray::Empty({1, 512}, DLDataType{kDLInt, 64, 1}, cpu);
-        tvm::runtime::NDArray attention_mask = tvm::runtime::NDArray::Empty({1, 512}, DLDataType{kDLFloat, 32, 1}, cpu);
+        tvm::runtime::NDArray input_ids = tvm::runtime::NDArray::Empty({1, 128}, DLDataType{kDLInt, 64, 1}, cpu);
+        tvm::runtime::NDArray attention_mask = tvm::runtime::NDArray::Empty({1, 128}, DLDataType{kDLFloat, 32, 1}, cpu);
         
-        for (size_t i = 0;i < 512;i++) {
+        for (size_t i = 0;i < 128;i++) {
             static_cast<int64_t*>(input_ids->data)[i] = ids[i];
             if (ids[i] != 1) {
                 static_cast<float*>(attention_mask->data)[i] = 1.0;
@@ -84,7 +84,7 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         
         auto end = std::chrono::steady_clock::now();
         float ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        tvm::runtime::NDArray last_hidden_state = tvm::runtime::NDArray::Empty({1, 512, 384}, DLDataType{kDLFloat, 32, 1}, cpu);
+        tvm::runtime::NDArray last_hidden_state = tvm::runtime::NDArray::Empty({1, 128, 384}, DLDataType{kDLFloat, 32, 1}, cpu);
         
         get_output(0, last_hidden_state);
         Eigen::MatrixXf token_embeddings(ids.size(), 384);
