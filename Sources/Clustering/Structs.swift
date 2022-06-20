@@ -82,7 +82,7 @@ public struct InformationForId: Equatable {
 }
 
 public struct Page {
-    public init(id: UUID, url: URL, title: String, content: String) {
+    public init(id: UUID, url: URL, title: String = "", content: String = "") {
         self.id = id
         self.url = url
         self.title = title
@@ -91,30 +91,6 @@ public struct Page {
         self.titleEmbedding = []
         self.meanTitleContentEmbedding = []
         self.processTitle()
-        assert(!(self.content.isEmpty && self.title.isEmpty))
-    }
-    
-    public init(id: UUID, url: URL, title: String) {
-        self.id = id
-        self.url = url
-        self.title = title
-        self.content = ""
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
-        self.processTitle()
-        assert(!self.title.isEmpty)
-    }
-    
-    public init(id: UUID, url: URL, content: String) {
-        self.id = id
-        self.url = url
-        self.title = ""
-        self.content = content
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
-        assert(!self.content.isEmpty)
     }
     
     mutating func processTitle() {

@@ -89,9 +89,14 @@ extension ClusteringCLI {
                         return
                     }
                     let convertedIsOpenAtExport = isOpenAtExport == "false" ? false: true
+                    let cleanedTitle = title.replacingOccurrences(of: " and some text", with: "").trimmingCharacters(in: .whitespaces)
+                    let cleanedURL = url == "<???>" ? "http://empty": url
                     
                     if convertedIsOpenAtExport {
-                        pages[convertedPageId] = Page(id: convertedPageId, url: URL(string: url)!, title: title.replacingOccurrences(of: " and some text", with: ""), content: originalContent)
+                        guard let unwrappedURL = URL(string: cleanedURL) else {
+                            return
+                        }
+                        pages[convertedPageId] = Page(id: convertedPageId, url: unwrappedURL, title: cleanedTitle, content: originalContent)
                     }
                 }
             }
@@ -108,21 +113,21 @@ extension ClusteringCLI {
             fflush(stdout)
             clusteredPageIds = try await cluster.add(page: page).pageGroups
         }
-                
+        
         var outputCsv: [[String]] = [csvFile.headers]
         var groupId2colours: [String:String] = [:]
-        for c in clusteredPageIds.enumerated() {
+        /*for c in clusteredPageIds.enumerated() {
             print("Cluster \(c.offset):")
             for p in c.element {
                 if let u = pages[p] {
                     print("\t\(u.url)")
                 }
             }
-        }
+        }*/
         
         if let columns = csvFile[column: "id"] {
             for rowId in columns.enumerated() {
-                if csvFile[rowId.offset][4] == "false" {
+                if csvFile[rowId.offset][11] == "false" {
                     outputCsv.append(csvFile[rowId.offset])
                 } else {
                     if let convertedId = UUID(uuidString: rowId.element) {

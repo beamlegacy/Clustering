@@ -170,6 +170,33 @@ class ClusteringTests: XCTestCase {
         expect(clusteredPageIds.count).to(equal(3))
     }
     
+    func testFullemptyPages() async throws {
+        let cluster = Cluster()
+        var UUIDs: [UUID] = []
+        
+        for _ in 0...8 {
+            UUIDs.append(UUID())
+        }
+        
+        let pages = [
+            Page(id: UUIDs[0], url: URL(string: "https://www.google.com/search?q=mozart")!),
+            Page(id: UUIDs[1], url: URL(string: "https://www.google.com/search?q=classical%20music%20mozart")!),
+            Page(id: UUIDs[2], url: URL(string: "https://www.google.com/search?q=cat")!),
+            Page(id: UUIDs[3], url: URL(string: "https://www.google.com/search?q=dog")!),
+            Page(id: UUIDs[4], url: URL(string: "https://www.google.com/search?q=worm")!),
+            Page(id: UUIDs[5], url: URL(string: "https://www.google.com/search?q=snake")!),
+            Page(id: UUIDs[6], url: URL(string: "https://www.google.com/search?q=beethoven")!),
+            Page(id: UUIDs[7], url: URL(string: "https://www.google.com/search?q=musique%20classique")!)
+        ]
+        var clusteredPageIds: [[UUID]] = []
+        
+        for page in pages {
+            clusteredPageIds = try await cluster.add(page: page).pageGroups
+        }
+        
+        expect(clusteredPageIds.count).to(equal(1))
+    }
+    
     func testMixPageNote() async throws {
         let cluster = Cluster()
         var pageUUIDs: [UUID] = []
