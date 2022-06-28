@@ -32,6 +32,9 @@ struct ClusteringCLI: AsyncParsableCommand {
     
     @Option(help: "The CSV output file where the replayed export will be saved.")
     var outputFile: String
+    
+    @Flag(help: "Debug mode.")
+    var debug = false
 }
 
 extension ClusteringCLI {
@@ -71,20 +74,11 @@ extension ClusteringCLI {
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
         var id2colours: [String: String] = [:]
-        var tmpId2colours: [String: String] = [:]
         
         for row in csvFile.records {
-            if let id = row["id"], let tabColouringGroupId = row["tabColouringGroupId"], let userCorrectionGroupId = row["userCorrectionGroupId"] {
-                if tabColouringGroupId != "<???>" {
-                    if userCorrectionGroupId == "<???>" {
-                        id2colours[id] = tabColouringGroupId
-                    } else {
-                        tmpId2colours[id] = userCorrectionGroupId
-                    }
-                }
-            }
             if row["noteName"] == "<???>" {
-                if let isOpenAtExport = row["isOpenAtExport"], let pageId = row["id"], let title = row["title"], let originalContent = row["cleanedContent"], let url = row["url"] {
+                if let isOpenAtExport = row["isOpenAtExport"], let pageId = row["id"], let title = row["title"], let originalContent = row["cleanedContent"], let url = row["url"], let tabColouringGroupId = row["tabColouringGroupId"], let userCorrectionGroupId = row["userCorrectionGroupId"] {
+                    
                     guard let convertedPageId = UUID(uuidString: pageId) else {
                         return
                     }
@@ -92,7 +86,14 @@ extension ClusteringCLI {
                     let cleanedTitle = title.replacingOccurrences(of: " and some text", with: "").trimmingCharacters(in: .whitespaces)
                     let cleanedURL = url == "<???>" ? "http://empty": url
                     
-                    if convertedIsOpenAtExport {
+                    if convertedIsOpenAtExport && !(tabColouringGroupId == "<???>" && userCorrectionGroupId == "<???>") {
+                        if tabColouringGroupId != "<???>" && userCorrectionGroupId == "<???>" {
+                            id2colours[pageId] = tabColouringGroupId
+                        } else if (tabColouringGroupId == "<???>" && userCorrectionGroupId != "<???>") ||
+                                  (tabColouringGroupId != "<???>" && userCorrectionGroupId != "<???>") {
+                            id2colours[pageId] = userCorrectionGroupId
+                        }
+                        
                         guard let unwrappedURL = URL(string: cleanedURL) else {
                             return
                         }
@@ -101,33 +102,34 @@ extension ClusteringCLI {
                 }
             }
         }
-
-        for (key, value) in tmpId2colours {
-            if !id2colours.values.contains(value) {
-                id2colours[key] = value
-            }
-        }
-
+        
         for page in pages.values {
-            print("Add Page: " + page.id.description)
-            fflush(stdout)
+            if self.debug {
+                print("Add Page: " + page.id.description)
+                fflush(stdout)
+            }
+            
             clusteredPageIds = try await cluster.add(page: page).pageGroups
+        }
+        
+        if self.debug {
+            for c in clusteredPageIds.enumerated() {
+                print("Cluster \(c.offset):")
+                for p in c.element {
+                    if let u = pages[p] {
+                        print("\t\(u.url)")
+                        fflush(stdout)
+                    }
+                }
+            }
         }
         
         var outputCsv: [[String]] = [csvFile.headers]
         var groupId2colours: [String:String] = [:]
-        /*for c in clusteredPageIds.enumerated() {
-            print("Cluster \(c.offset):")
-            for p in c.element {
-                if let u = pages[p] {
-                    print("\t\(u.url)")
-                }
-            }
-        }*/
         
         if let columns = csvFile[column: "id"] {
             for rowId in columns.enumerated() {
-                if csvFile[rowId.offset][11] == "false" {
+                if csvFile[rowId.offset][11] == "false" || (csvFile[rowId.offset][4] == "<???>" && csvFile[rowId.offset][5] == "<???>")  {
                     outputCsv.append(csvFile[rowId.offset])
                 } else {
                     if let convertedId = UUID(uuidString: rowId.element) {
@@ -141,17 +143,18 @@ extension ClusteringCLI {
                         let groupId = self.findGroupForID(id: convertedId, groups: clusteredPageIds)
                         var currentColor = ""
                         
-                        if csvFile[rowId.offset][4] == "<???>" && csvFile[rowId.offset][5] == "<???>" {
-                            newRow.append(csvFile[rowId.offset][4])
-                        } else if let color = groupId2colours[String(groupId)] {
-                            currentColor = color
-                            newRow.append(color)
-                            groupId2colours[String(groupId)] = color
-                        } else if let color = id2colours[rowId.element] {
-                            if !groupId2colours.values.contains(color) {
+                        if groupId != -1 {
+                            if let color = groupId2colours[String(groupId)] {
+                                currentColor = color
+                                newRow.append(color)
+                            } else if let color = id2colours[rowId.element] {
                                 currentColor = color
                                 newRow.append(color)
                                 groupId2colours[String(groupId)] = color
+                                
+                                for (key, value) in id2colours where value == color {
+                                    id2colours.removeValue(forKey: key)
+                                }
                             } else {
                                 currentColor = UUID().description
                                 groupId2colours[String(groupId)] = currentColor
@@ -163,11 +166,11 @@ extension ClusteringCLI {
                             newRow.append(currentColor)
                         }
                         
-                        if csvFile[rowId.offset][4] != "<???>" && csvFile[rowId.offset][5] == "<???>" && csvFile[rowId.offset][4] != currentColor {
-                            newRow.append(csvFile[rowId.offset][4])
-                        } else if csvFile[rowId.offset][5] == currentColor {
+                        if csvFile[rowId.offset][4] == currentColor || csvFile[rowId.offset][5] == currentColor {
                             newRow.append("<???>")
-                        } else {
+                        } else if csvFile[rowId.offset][5] == "<???>" && csvFile[rowId.offset][4] != currentColor {
+                            newRow.append(csvFile[rowId.offset][4])
+                        } else if (csvFile[rowId.offset][5] != currentColor && csvFile[rowId.offset][4] != currentColor) {
                             newRow.append(csvFile[rowId.offset][5])
                         }
                         
