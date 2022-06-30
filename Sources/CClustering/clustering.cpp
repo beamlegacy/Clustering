@@ -94,12 +94,11 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
         
         for (size_t i = 0;i < ids.size();i++) {
             for (size_t j = 0;j < 384;j++) {
-                token_embeddings(i, j) = static_cast<float*>(last_hidden_state->data)[(i+1)*j];
+                token_embeddings(i, j) = static_cast<float*>(last_hidden_state->data)[(i*384) + j];
                 input_mask_expanded(i, j) = static_cast<float*>(attention_mask->data)[i];
 
             }
         }
-        
         clamped_input_mask_expanded = input_mask_expanded.colwise().sum();
         clamped_input_mask_expanded = (clamped_input_mask_expanded.array() == 0.0).select(0.000000001, clamped_input_mask_expanded);
         final_output = ((token_embeddings.array() * input_mask_expanded.array()).matrix().colwise().sum()).array() / clamped_input_mask_expanded.array();

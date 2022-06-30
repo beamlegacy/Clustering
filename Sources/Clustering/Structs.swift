@@ -1,5 +1,6 @@
 import Foundation
 
+
 extension NSRegularExpression {
     /// An array of substring of the given string, separated by this regular expression, restricted to returning at most n items.
     /// If n substrings are returned, the last substring (the nth substring) will contain the remainder of the string.
@@ -62,34 +63,21 @@ extension NSRegularExpression {
     }
 }
 
-public struct InformationForId: Equatable {
-    public var title: String
-    public var content: String
-    
-    public var isEmpty: Bool {
-        self.title.isEmpty && self.content.isEmpty
-    }
-    
-    public init(title: String, content: String) {
-        self.title = title
-        self.content = content
-    }
-    
-    public init() {
-        self.title = ""
-        self.content = ""
-    }
+public enum TextualItemType {
+    case page
+    case note
 }
 
-public struct Page {
-    public init(id: UUID, url: URL, title: String = "", content: String = "") {
-        self.id = id
+
+public struct TextualItem: Equatable {
+    public init(uuid: UUID, url: String = "", title: String = "", content: String = "", type: TextualItemType) {
+        self.uuid = uuid
         self.url = url
         self.title = title
-        self.content = content
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
+        self.content = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.embedding = []
+        self.type = type
+        
         self.processTitle()
     }
     
@@ -105,98 +93,18 @@ public struct Page {
                 titleAsArray = splitTitle[0..<1]
             }
             
-            self.title = (titleAsArray.map { $0.capitalized }).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            self.title = titleAsArray.joined(separator: " ").capitalized.trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
-    
-    public var isOnlyTitle: Bool {
-        self.content.isEmpty
-    }
-    
-    public var isOnlyContent: Bool {
-        self.title.isEmpty
-    }
-    
-    public var isTitleAndContent: Bool {
-        !self.title.isEmpty && !self.content.isEmpty
-    }
-    
-    public var isEmptyEmbedding: Bool {
-        self.titleEmbedding.isEmpty && self.contentEmbedding.isEmpty && self.meanTitleContentEmbedding.isEmpty
+
+    mutating func updateEmbedding(newEmbedding: [Double]) {
+        self.embedding = newEmbedding
     }
 
-    public var id: UUID
-    public var url: URL
+    public let uuid: UUID
+    public let url: String
     var title: String
-    var content: String
-    var contentEmbedding: [Double]
-    var titleEmbedding: [Double]
-    var meanTitleContentEmbedding: [Double]
-}
-
-public struct ClusteringNote {
-    public init(id: UUID, title: String, content: String) {
-        self.id = id
-        self.title = title
-        self.content = content
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
-        self.processTitle()
-        assert(!self.content.isEmpty && !self.title.isEmpty)
-    }
-    
-    public init(id: UUID, title: String) {
-        self.id = id
-        self.title = title
-        self.content = ""
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
-        self.processTitle()
-        assert(!self.content.isEmpty && !self.title.isEmpty)
-    }
-    
-    public init(id: UUID, content: String) {
-        self.id = id
-        self.title = ""
-        self.content = content
-        self.contentEmbedding = []
-        self.titleEmbedding = []
-        self.meanTitleContentEmbedding = []
-        assert(!self.content.isEmpty && !self.title.isEmpty)
-    }
-    
-    mutating func processTitle() {
-        let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:]\\s+")
-        let splitTitle = regex.splitn(self.title)
-        var titleAsArray: ArraySlice<String> = []
-        
-        if splitTitle.count > 1 {
-            titleAsArray = splitTitle[0..<splitTitle.count-1]
-        } else {
-            titleAsArray = splitTitle[0..<1]
-        }
-        
-        self.title = (titleAsArray.map { $0.capitalized }).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    public var isOnlyTitle: Bool {
-        self.content.isEmpty
-    }
-    
-    public var isOnlyContent: Bool {
-        self.title.isEmpty
-    }
-    
-    public var isTitleAndContent: Bool {
-        !self.title.isEmpty && !self.content.isEmpty
-    }
-    
-    public var id: UUID
-    var title: String
-    var content: String
-    var contentEmbedding: [Double]
-    var titleEmbedding: [Double]
-    var meanTitleContentEmbedding: [Double]
+    let content: String
+    var embedding: [Double]
+    let type: TextualItemType
 }
