@@ -1,4 +1,97 @@
 import Foundation
+import NaturalLanguage
+
+public struct EntitiesInText : Equatable {
+    var entities = ["PersonalName": [String](), "PlaceName": [String](), "OrganizationName": [String]()]
+    public var description: String {
+        return "PER[" + entities["PersonalName"]!.description + "] - LOC[" + entities["PlaceName"]!.description + "] - ORG[" + entities["OrganizationName"]!.description + "]"
+    }
+    var isEmpty: Bool {
+        if (entities["PersonalName"]?.count ?? 0) + (entities["PlaceName"]?.count ?? 0) + (entities["OrganizationName"]?.count ?? 0) == 0 {
+            return true
+        } else {
+            return false
+        }
+    }
+}
+func + (left: EntitiesInText, right: EntitiesInText) -> EntitiesInText {
+    var totalEntities = EntitiesInText()
+    totalEntities.entities["PersonalName"] = (left.entities["PersonalName"] ?? []) + (right.entities["PersonalName"] ?? [])
+    totalEntities.entities["PlaceName"] = (left.entities["PlaceName"] ?? []) + (right.entities["PlaceName"] ?? [])
+    totalEntities.entities["OrganizationName"] = (left.entities["OrganizationName"] ?? []) + (right.entities["OrganizationName"] ?? [])
+    return totalEntities
+}
+
+public struct InformationForId: Equatable {
+    public var title: String? = nil
+    public var cleanedContent: String? = nil
+    public var entitiesInText: EntitiesInText? = nil
+    public var entitiesInTitle: EntitiesInText? = nil
+    public var language: NLLanguage? = nil
+    public var parentId: UUID? = nil
+    
+    public var isEmpty: Bool {
+        title == nil && cleanedContent == nil
+    }
+
+}
+
+public struct Page {
+    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
+        self.id = id
+        self.parentId = parentId
+        self.title = title
+        self.originalContent = originalContent
+        self.cleanedContent = cleanedContent
+        self.url = url
+        self.language = language
+        self.beWith = beWith
+        self.beApart = beApart
+    }
+    
+    func toTextualItem() -> TextualItem {
+        let urlStr: String = self.url?.description ?? ""
+        return TextualItem(id: self.id, url: urlStr, title: self.title ?? "", originalContent: self.originalContent, cleanedContent: self.cleanedContent, type: TextualItemType.page, parentId: self.parentId, language: self.language, beWith: self.beWith, beApart: self.beApart)
+    }
+
+    public var id: UUID
+    var parentId: UUID?
+    var title: String?
+    var originalContent: [String]?
+    var cleanedContent: String?
+    var textEmbedding: [Double]?
+    var entities: EntitiesInText?
+    var language: NLLanguage?
+    var entitiesInTitle: EntitiesInText?
+    var url: URL?
+    var domain: String?
+    var beWith: [UUID]?
+    var beApart: [UUID]?
+}
+
+public struct ClusteringNote {
+    public init(id: UUID, title: String? = nil, content: [String]? = nil, language: NLLanguage? = nil) {
+        self.id = id
+        self.title = title
+        self.originalContent = content
+        self.language = language
+    }
+    
+    func toTextualItem() -> TextualItem {
+        return TextualItem(id: self.id, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
+    }
+    
+    public var id: UUID
+    var title: String?
+    var originalContent: [String]?  // Text in the note.
+                          // TODO: Should we save to source (copy-paste from a page, user input...)
+    var cleanedContent: String?
+    var textEmbedding: [Double]?
+    var entities: EntitiesInText?
+    var language: NLLanguage?
+    var entitiesInTitle: EntitiesInText?
+}
+
 
 
 extension NSRegularExpression {
@@ -70,13 +163,27 @@ public enum TextualItemType {
 
 
 public struct TextualItem: Equatable {
-    public init(uuid: UUID, url: String = "", title: String = "", content: String = "", type: TextualItemType) {
-        self.uuid = uuid
+    public init(id: UUID, url: String = "", title: String = "", originalContent: [String]? = nil, cleanedContent: String? = nil, type: TextualItemType, parentId: UUID? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
+        self.uuid = id
         self.url = url
         self.title = title
-        self.content = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.originalContent = originalContent
+        self.cleanedContent = cleanedContent
+        
+        if let originalContentUnwraped = self.originalContent {
+            self.content = originalContentUnwraped.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if let cleanedContentUnwraped = cleanedContent {
+            self.content = cleanedContentUnwraped
+        } else {
+            self.content = ""
+        }
+        
         self.embedding = []
         self.type = type
+        self.language = language
+        self.parentId = parentId
+        self.beWith = beWith
+        self.beApart = beApart
         
         self.processTitle()
     }
@@ -100,11 +207,25 @@ public struct TextualItem: Equatable {
     mutating func updateEmbedding(newEmbedding: [Double]) {
         self.embedding = newEmbedding
     }
+    
+    func toPage() -> Page {
+        return Page(id: self.uuid, parentId: self.parentId, url: URL(string: self.url), title: self.title, originalContent: self.originalContent, cleanedContent: cleanedContent, language: self.language, beWith: self.beWith, beApart: self.beApart)
+    }
+    
+    func toNote() -> ClusteringNote {
+        return ClusteringNote(id: self.uuid, title: self.title, content: self.originalContent, language: self.language)
+    }
 
     public let uuid: UUID
     public let url: String
+    let parentId: UUID?
+    let language: NLLanguage?
+    let beApart: [UUID]?
+    let beWith: [UUID]?
     var title: String
     let content: String
     var embedding: [Double]
     let type: TextualItemType
+    let cleanedContent: String?
+    let originalContent: [String]?
 }

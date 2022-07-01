@@ -69,8 +69,8 @@ extension ClusteringCLI {
     }
     
     mutating func run() async throws {
-        let cluster = Cluster()
-        var pages: [UUID: Page] = [:]
+        let cluster = SmartClustering()
+        var pages: [UUID: TextualItem] = [:]
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
         var id2colours: [String: String] = [:]
@@ -94,10 +94,7 @@ extension ClusteringCLI {
                             id2colours[pageId] = userCorrectionGroupId
                         }
                         
-                        guard let unwrappedURL = URL(string: cleanedURL) else {
-                            return
-                        }
-                        pages[convertedPageId] = Page(id: convertedPageId, url: unwrappedURL, title: cleanedTitle, content: originalContent)
+                        pages[convertedPageId] = TextualItem(id: convertedPageId, url: cleanedURL, title: cleanedTitle, originalContent: [originalContent], type: TextualItemType.page)
                     }
                 }
             }
@@ -105,11 +102,11 @@ extension ClusteringCLI {
         
         for page in pages.values {
             if self.debug {
-                print("Add Page: " + page.id.description)
+                print("Add Page: " + page.uuid.description)
                 fflush(stdout)
             }
             
-            clusteredPageIds = try await cluster.add(page: page).pageGroups
+            clusteredPageIds = try await cluster.add(textualItem: page).pageGroups
         }
         
         if self.debug {
