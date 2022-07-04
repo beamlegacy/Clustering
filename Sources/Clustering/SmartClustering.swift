@@ -74,7 +74,7 @@ extension Double {
 
 
 public class SmartClustering {
-    let thresholdComparison = 0.3105
+    var thresholdComparison = 0.3105
     var textualItems = [TextualItem]()
     var clusters = [[UUID]]()
     var similarities = [[Double]]()
@@ -323,6 +323,17 @@ public class SmartClustering {
                 }
             }
         }
+        
+        self.createClusters()
+        
+        let pageGroups = self.createTextualItemGroups(of: TextualItemType.page)
+        let noteGroups = self.createTextualItemGroups(of: TextualItemType.note)
+        
+        return (pageGroups: pageGroups, noteGroups: noteGroups)
+    }
+    
+    public func changeCandidate(threshold: Double) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+        self.thresholdComparison = threshold
         
         self.createClusters()
         

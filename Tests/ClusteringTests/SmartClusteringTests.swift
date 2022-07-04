@@ -43,6 +43,10 @@ class SmartClusteringTests: XCTestCase {
         }
         
         expect(clusteredPageIds.count).to(equal(3))
+        
+        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.2815).pageGroups
+        
+        Òexpect(clusteredPageIds.count).to(equal(2))
     }
 
     func testMultilingualPages() async throws {
