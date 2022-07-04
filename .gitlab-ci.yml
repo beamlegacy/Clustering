@@ -50,7 +50,7 @@ test_project:
       coverage_report:
         coverage_format: cobertura
         path: cobertura.xml
-        junit: test_output/tests.xml
+      junit: test_output/tests.xml
   coverage: '/Test Coverage\: \d+(?:\.\d*)?\%/'
   only:
     - merge_requests
