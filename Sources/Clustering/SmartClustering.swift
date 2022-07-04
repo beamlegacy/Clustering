@@ -10,13 +10,13 @@ enum CClusteringError: Error {
 
 class ModelInference {
     lazy var model: UnsafeMutableRawPointer! = {
-        //guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
-        //   var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
-        //else {
-        //  fatalError("Resources not found")
-        //}
-        var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
-        var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+        guard var modelPath = Bundle.module.path(forResource: "minilm_multilingual", ofType: "dylib"),
+           var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
+        else {
+          fatalError("Resources not found")
+        }
+        //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
+        //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
         var model: UnsafeMutableRawPointer!
         
         modelPath.withUTF8 { cModelPath in
