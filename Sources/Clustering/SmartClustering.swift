@@ -36,12 +36,17 @@ class ModelInference {
     }()
     
     @MainActor func encode(text: String) async throws -> [Double] {
-        var content = text
+        //var content = text
         var result = ModelInferenceResult()
         var ret: Int32 = -1
         
-        content.withUTF8 { cText in
+        /*content.withUTF8 { cText in
             ret = doModelInference(self.model, cText.baseAddress, &result)
+        }*/
+        let bytesText = text.utf8CString
+        
+        bytesText.withUnsafeBufferPointer { ptrText in
+            ret = doModelInference(self.model, ptrText.baseAddress, &result)
         }
             
         if ret == 0 {
