@@ -18,12 +18,19 @@ class ModelInference {
         //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/minilm_multilingual.dylib"
         //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
         var model: UnsafeMutableRawPointer!
+        let bytesModel = modelPath.utf8CString
+        let bytesTokenizer = tokenizerModelPath.utf8CString
         
-        modelPath.withUTF8 { cModelPath in
+        bytesModel.withUnsafeBufferPointer { ptrModel in
+            bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
+                model = createModelInferenceWrapper(ptrModel.baseAddress, ptrTokenizer.baseAddress)
+            }
+        }
+        /*modelPath.withUTF8 { cModelPath in
             tokenizerModelPath.withUTF8 { cTokenizerModelPath in
                 model = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
             }
-        }
+        }*/
 
         return model
     }()
