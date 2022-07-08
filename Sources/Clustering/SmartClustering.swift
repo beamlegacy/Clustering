@@ -10,13 +10,13 @@ enum CClusteringError: Error {
 
 class ModelInference {
     lazy var model: UnsafeMutableRawPointer! = {
-        /*guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx"),
+        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx"),
            var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
         else {
           fatalError("Resources not found")
-        }*/
-        var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/model-optimized-int32-quantized.onnx"
-        var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+        }
+        //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/model-optimized-int32-quantized.onnx"
+        //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
         var model: UnsafeMutableRawPointer!
         let bytesModel = modelPath.utf8CString
         let bytesTokenizer = tokenizerModelPath.utf8CString
