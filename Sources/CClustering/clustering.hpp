@@ -1,19 +1,16 @@
 //
-//  model_inference_wrapper.hpp
-//  sentencepiece-swift
+//  clustering.hpp
+//  clustering
 //
-//  Created by Julien Plu on 09/05/2022.
+//  Created by Julien Plu on 07/07/2022.
 //
 
 #ifndef clustering_hpp
 #define clustering_hpp
 
 #include "sentencepiece_processor.hpp"
-#include "tvm/runtime/module.h"
-#include "tvm/runtime/packed_func.h"
-#include "tvm/runtime/registry.h"
+#include "onnxruntime_cxx_api.h"
 #include <iostream>
-#include "Eigen/Dense"
 #include <chrono>
 #include <thread>
 
@@ -27,7 +24,8 @@ struct ModelInferenceResult {
 class ModelInferenceWrapper {
     private:
         sentencepiece::SentencePieceProcessor tokenizer;
-        tvm::runtime::Module model;
+        std::unique_ptr<Ort::Session> session;
+        std::unique_ptr<Ort::Env> env;
     public:
         ModelInferenceWrapper(const char* model_path, const char* tokenizer_model_path);
         int infer(const char* text, ModelInferenceResult* result);

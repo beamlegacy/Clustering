@@ -41,10 +41,10 @@ class SmartClusteringTests: XCTestCase {
         for texualItem in textualItems {
             clusteredPageIds = try await cluster.add(textualItem: texualItem).pageGroups
         }
+
+        expect(clusteredPageIds.count).to(equal(4))
         
-        expect(clusteredPageIds.count).to(equal(3))
-        
-        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.2815).pageGroups
+        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.1).pageGroups
         
         expect(clusteredPageIds.count).to(equal(2))
     }

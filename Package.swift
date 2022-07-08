@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "Clustering",
     platforms: [
-        .macOS("10.15")
+        .macOS("11.3")
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
@@ -25,11 +25,11 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
-        .binaryTarget(name: "tvmruntime", path: "tvmruntime.xcframework"),
+        .binaryTarget(name: "onnxruntime", path: "onnxruntime.xcframework"),
         .binaryTarget(name: "sentencepiece", path: "sentencepiece.xcframework"),
         .target(
             name: "CClustering",
-            dependencies: ["tvmruntime", "sentencepiece"]
+            dependencies: ["onnxruntime", "sentencepiece"]
         ),
         .target(
             name: "Clustering",
@@ -38,7 +38,7 @@ let package = Package(
         ),
         .testTarget(
             name: "ClusteringTests",
-            dependencies: ["Clustering", "Nimble", "tvmruntime", "sentencepiece"]
+            dependencies: ["Clustering", "Nimble", "onnxruntime", "sentencepiece"]
         )
     ],
     cxxLanguageStandard: CXXLanguageStandard.cxx14

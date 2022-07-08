@@ -1,8 +1,8 @@
 //
 //  c_wrapper.hpp
-//  sentencepiece-swift
+//  clustering
 //
-//  Created by Julien Plu on 09/05/2022.
+//  Created by Julien Plu on 07/07/2022.
 //
 
 #ifndef c_wrapper_hpp
