@@ -9,14 +9,13 @@ enum CClusteringError: Error {
 
 
 class ModelInference {
-    lazy var model: UnsafeMutableRawPointer! = {
-        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx"),
-           var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model")
+    lazy var model: UnsafeMutableRawPointer = {
+        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources"),
+           var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
         else {
           fatalError("Resources not found")
         }
-        //var modelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/model-optimized-int32-quantized.onnx"
-        //var tokenizerModelPath = "/Users/jplu/dev/clustering/Sources/Clustering/Resources/sentencepiece.bpe.model"
+        
         var model: UnsafeMutableRawPointer!
         let bytesModel = modelPath.utf8CString
         let bytesTokenizer = tokenizerModelPath.utf8CString
@@ -26,6 +25,8 @@ class ModelInference {
                 model = createModelInferenceWrapper(ptrModel.baseAddress, ptrTokenizer.baseAddress)
             }
         }
+        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
+        // to this version we could uncomment this part.
         /*modelPath.withUTF8 { cModelPath in
             tokenizerModelPath.withUTF8 { cTokenizerModelPath in
                 model = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
@@ -36,6 +37,8 @@ class ModelInference {
     }()
     
     @MainActor func encode(text: String) async throws -> [Double] {
+        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
+        // to this version we could uncomment this part.
         //var content = text
         var result = ModelInferenceResult()
         var ret: Int32 = -1

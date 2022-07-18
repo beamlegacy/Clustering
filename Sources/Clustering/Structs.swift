@@ -37,6 +37,20 @@ public struct InformationForId: Equatable {
 }
 
 public struct Page {
+    public var id: UUID
+    var parentId: UUID?
+    var title: String?
+    var originalContent: [String]?
+    var cleanedContent: String?
+    var textEmbedding: [Double]?
+    var entities: EntitiesInText?
+    var language: NLLanguage?
+    var entitiesInTitle: EntitiesInText?
+    var url: URL?
+    var domain: String?
+    var beWith: [UUID]?
+    var beApart: [UUID]?
+    
     public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.id = id
         self.parentId = parentId
@@ -53,23 +67,19 @@ public struct Page {
         let urlStr: String = self.url?.description ?? ""
         return TextualItem(id: self.id, url: urlStr, title: self.title ?? "", originalContent: self.originalContent, cleanedContent: self.cleanedContent, type: TextualItemType.page, parentId: self.parentId, language: self.language, beWith: self.beWith, beApart: self.beApart)
     }
+}
 
+public struct ClusteringNote {
     public var id: UUID
-    var parentId: UUID?
     var title: String?
-    var originalContent: [String]?
+    var originalContent: [String]?  // Text in the note.
+                          // TODO: Should we save to source (copy-paste from a page, user input...)
     var cleanedContent: String?
     var textEmbedding: [Double]?
     var entities: EntitiesInText?
     var language: NLLanguage?
     var entitiesInTitle: EntitiesInText?
-    var url: URL?
-    var domain: String?
-    var beWith: [UUID]?
-    var beApart: [UUID]?
-}
-
-public struct ClusteringNote {
+    
     public init(id: UUID, title: String? = nil, content: [String]? = nil, language: NLLanguage? = nil) {
         self.id = id
         self.title = title
@@ -80,16 +90,6 @@ public struct ClusteringNote {
     func toTextualItem() -> TextualItem {
         return TextualItem(id: self.id, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
     }
-    
-    public var id: UUID
-    var title: String?
-    var originalContent: [String]?  // Text in the note.
-                          // TODO: Should we save to source (copy-paste from a page, user input...)
-    var cleanedContent: String?
-    var textEmbedding: [Double]?
-    var entities: EntitiesInText?
-    var language: NLLanguage?
-    var entitiesInTitle: EntitiesInText?
 }
 
 
@@ -163,6 +163,19 @@ public enum TextualItemType {
 
 
 public struct TextualItem: Equatable {
+    public let uuid: UUID
+    public let url: String
+    let parentId: UUID?
+    let language: NLLanguage?
+    let beApart: [UUID]?
+    let beWith: [UUID]?
+    var title: String
+    let content: String
+    var embedding: [Double]
+    let type: TextualItemType
+    let cleanedContent: String?
+    let originalContent: [String]?
+    
     public init(id: UUID, url: String = "", title: String = "", originalContent: [String]? = nil, cleanedContent: String? = nil, type: TextualItemType, parentId: UUID? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.uuid = id
         self.url = url
@@ -215,17 +228,4 @@ public struct TextualItem: Equatable {
     func toNote() -> ClusteringNote {
         return ClusteringNote(id: self.uuid, title: self.title, content: self.originalContent, language: self.language)
     }
-
-    public let uuid: UUID
-    public let url: String
-    let parentId: UUID?
-    let language: NLLanguage?
-    let beApart: [UUID]?
-    let beWith: [UUID]?
-    var title: String
-    let content: String
-    var embedding: [Double]
-    let type: TextualItemType
-    let cleanedContent: String?
-    let originalContent: [String]?
 }
