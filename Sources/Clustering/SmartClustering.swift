@@ -85,7 +85,7 @@ public class SmartClustering {
 
     public init() {}
 
-    func normalize(vector: [Double]) -> [Double] {
+    private func normalize(vector: [Double]) -> [Double] {
         let normValue = cblas_dnrm2(Int32(vector.count), vector, 1)
         
         if normValue > 0 {
@@ -107,7 +107,7 @@ public class SmartClustering {
     ///   - vector1: a vector
     ///   - vector2: a vector
     /// - Returns: The cosine similarity between the two given vectors.
-    func cosineSimilarity(vector1: [Double], vector2: [Double]) -> Double {
+    private func cosineSimilarity(vector1: [Double], vector2: [Double]) -> Double {
         let vector1Norm = normalize(vector: vector1)
         let vector2Norm = normalize(vector: vector2)
         
@@ -125,7 +125,7 @@ public class SmartClustering {
         return similarity.rounded(toPlaces: 4)
     }
 
-    func overallCosineSimilarity() -> [[Double]] {
+    private func overallCosineSimilarity() -> [[Double]] {
         var cosineSimilarities = [[Double]]()
         
         for i in 0...self.textualItems.count - 1 {
@@ -141,7 +141,7 @@ public class SmartClustering {
         return cosineSimilarities
     }
 
-    func argsort<T:Comparable>( a : [T] ) -> [Int] {
+    private func argsort<T:Comparable>( a : [T] ) -> [Int] {
         var r = Array(a.indices)
         
         r.sort(by: { a[$0] > a[$1] })
@@ -149,7 +149,7 @@ public class SmartClustering {
         return r
     }
 
-    func topk(k: Int, vector: [Double]) -> ([Double], [Int]) {
+    private func topk(k: Int, vector: [Double]) -> ([Double], [Int]) {
         var sortedVector = vector
         
         sortedVector.sort(by: { $0 > $1 })
@@ -157,7 +157,7 @@ public class SmartClustering {
         return (Array(sortedVector[0...k-1]), Array(self.argsort(a: vector)[0...k-1]))
     }
 
-    func overallTopk(k: Int, vector: [[Double]]) -> ([[Double]], [[Int]]) {
+    private func overallTopk(k: Int, vector: [[Double]]) -> ([[Double]], [[Int]]) {
         var values = [[Double]]()
         var indices = [[Int]]()
         
@@ -171,7 +171,7 @@ public class SmartClustering {
         return (values, indices)
     }
 
-    func createClusters() {
+    private func createClusters() {
         var extractedClusters = [[Int]]()
         var nullClusters = [Int]()
         let sortMaxSize = self.textualItems.count
@@ -244,7 +244,7 @@ public class SmartClustering {
         assert(total == self.textualItems.count)
     }
 
-    func findTextualItemIndex(of: UUID) -> Int {
+    private func findTextualItemIndex(of: UUID) -> Int {
         for (idx, val) in self.textualItems.enumerated() {
             if val.uuid == of {
                 return idx
@@ -254,7 +254,7 @@ public class SmartClustering {
         return -1
     }
     
-    func findTextualItemIndexInClusters(of: UUID) -> (Int, Int) {
+    private func findTextualItemIndexInClusters(of: UUID) -> (Int, Int) {
         for (clusterIdx, cluster) in self.clusters.enumerated() {
             for (idx, uuid) in cluster.enumerated() {
                 if uuid == of {
@@ -266,7 +266,7 @@ public class SmartClustering {
         return (-1, -1)
     }
 
-    func createTextualItemGroups(of: TextualItemType) -> [[UUID]] {
+    private func createTextualItemGroups(of: TextualItemType) -> [[UUID]] {
         var textualItemGroups = [[UUID]]()
         
         for cluster in self.clusters {

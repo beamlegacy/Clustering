@@ -8,16 +8,6 @@ import Clustering
 
 // swiftlint:disable:next type_body_length
 class SmartClusteringTests: XCTestCase {
-    /// Test the cosine similarity function
-    func testCosineSimilarity() throws {
-        let cluster = SmartClustering()
-        let vec1 = [0.0, 1.5, 3.0, 4.5, 6.0]
-        let vec2 = [2.0, 4.0, 6.0, 8.0, 10.0]
-        let cossim = cluster.cosineSimilarity(vector1: vec1, vector2: vec2)
-
-        expect(cossim).to(beCloseTo(0.9847319278346619, within: 0.0001))
-    }
-    
     func testGoogleSearchClustering() async throws {
         let cluster = SmartClustering()
         var UUIDs: [UUID] = []
