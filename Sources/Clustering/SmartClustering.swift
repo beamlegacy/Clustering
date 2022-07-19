@@ -10,6 +10,7 @@ enum CClusteringError: Error {
 
 
 class ModelInference {
+    let hidden_size: Int32 = 384
     lazy var model: UnsafeMutableRawPointer = {
         guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
           fatalError("Resources not found")
@@ -20,7 +21,7 @@ class ModelInference {
         //let bytesTokenizer = tokenizerModelPath.utf8CString
         
         bytesModel.withUnsafeBufferPointer { ptrModel in
-            model = createModel(ptrModel.baseAddress, 384)
+            model = createModel(ptrModel.baseAddress, self.hidden_size)
         }
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
@@ -332,10 +333,10 @@ public class SmartClustering {
         
         for (idx, item) in self.textualItems.enumerated() {
             if item.embedding.count == 0 {
-                let text = (textualItem.title + " " + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+                let text = (textualItem.title + "</s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 if text.isEmpty {
-                    self.textualItems[idx].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: 384))
+                    self.textualItems[idx].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
                 } else {
                     var tokenizedText = try await self.modelInf.tokenizeText(text: text)
                     let embedding = try await self.modelInf.encode(tokenizerResult: &tokenizedText)
