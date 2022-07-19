@@ -89,9 +89,9 @@ int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
     
     if (input_ids_v.size() > this->max_seq_length - 2) {
         input_ids_v.resize(this->max_seq_length - 2);
-        input_ids_v.push_back(2);
     }
     
+    input_ids_v.push_back(2);
     input_ids_v.push_back(0);
     
     std::rotate(input_ids_v.rbegin(), input_ids_v.rbegin() + 1, input_ids_v.rend());
