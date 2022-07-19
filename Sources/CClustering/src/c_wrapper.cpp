@@ -1,6 +1,5 @@
 //
 //  c_wrapper.cpp
-//  sentencepiece-swift
 //
 //  Created by Julien Plu on 09/05/2022.
 //
@@ -9,21 +8,40 @@
 #include <iostream>
 #include <algorithm>
 
-extern "C" void* createModelInferenceWrapper(const char* model_path, const char* tokenizer_model_path) {
-    ModelInferenceWrapper* model_inference_wrapper = new ModelInferenceWrapper(model_path, tokenizer_model_path);
+extern "C" void* createModel(const char* model_path, int32_t hidden_size) {
+    Model* model = new Model(model_path, hidden_size);
     
-    return (void*) model_inference_wrapper;
+    return (void*) model;
 }
 
-extern "C" int doModelInference(void* handle, const char* text, struct ModelInferenceResult* result) {
-    ModelInferenceWrapper* model_inference_wrapper = (ModelInferenceWrapper*)handle;
-    model_inference_wrapper->infer(text, result);
+extern "C" int predict(void* handle, struct TokenizerResult* tokenizer_result, struct ModelResult* result) {
+    Model* model = (Model*)handle;
+    model->predict(tokenizer_result, result);
     
     return 0;
 }
 
-extern "C" void removeModelInferenceWrapper(void* handle) {
-    ModelInferenceWrapper* model_inference_wrapper = (ModelInferenceWrapper*)handle;
+extern "C" void removeModel(void* handle) {
+    Model* model = (Model*)handle;
     
-    delete model_inference_wrapper;
+    delete model;
+}
+
+extern "C" void* createTokenizer(const char* tokenizer_path, int32_t max_seq_length) {
+    Tokenizer* tokenizer = new Tokenizer(tokenizer_path, max_seq_length);
+    
+    return (void*) tokenizer;
+}
+
+extern "C" int tokenize(void* handle, const char* text, struct TokenizerResult* result) {
+    Tokenizer* tokenizer = (Tokenizer*)handle;
+    tokenizer->tokenize(text, result);
+    
+    return 0;
+}
+
+extern "C" void removeTokenizer(void* handle) {
+    Tokenizer* tokenizer = (Tokenizer*)handle;
+    
+    delete tokenizer;
 }

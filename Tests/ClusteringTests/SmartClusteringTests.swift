@@ -1,12 +1,8 @@
 import Nimble
 import XCTest
-import LASwift
-import NaturalLanguage
 @testable import Clustering
-import Accelerate
-import Clustering
 
-// swiftlint:disable:next type_body_length
+
 class SmartClusteringTests: XCTestCase {
     func testGoogleSearchClustering() async throws {
         let cluster = SmartClustering()
@@ -145,7 +141,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testRemoveTextualItem() async throws {
         let cluster = SmartClustering()
-        // Here we don't want to test that notes with little content are not added
         var pageUUIDs: [UUID] = []
         var clusteredPageIds: [[UUID]] = []
         

@@ -10,15 +10,7 @@
 #include <vector>
 
 
-ModelInferenceWrapper::ModelInferenceWrapper(const char* model_path, const char* tokenizer_model_path) {
-    std::string str_tokenizer_model_path(tokenizer_model_path);
-
-    const auto status = this->tokenizer.Load(str_tokenizer_model_path);
-    
-    if (!status.ok()) {
-        std::cerr << status.ToString() << std::endl;
-    }
-    
+Model::Model(const char* model_path, int32_t hidden_size) {
     std::string str_model_path(model_path);
     this->env = std::make_unique<Ort::Env>(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "clustering");
     Ort::SessionOptions sessionOptions;
@@ -27,28 +19,11 @@ ModelInferenceWrapper::ModelInferenceWrapper(const char* model_path, const char*
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
     
     this->session = std::make_unique<Ort::Session>(*this->env, model_path, sessionOptions);
+    this->hidden_size = hidden_size;
 }
 
-int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result) {
-    if (!this->tokenizer.status().ok()) {
-        return 1;
-    }
-    
-    std::vector<int32_t> input_ids_v;
-    std::string content(text);
-    
-    this->tokenizer.Encode(content, &input_ids_v);
-    
-    std::transform(input_ids_v.begin(), input_ids_v.end(), input_ids_v.begin(), [](int id){return id+1;});
-    
-    if (input_ids_v.size() > 126) {
-        input_ids_v.resize(126);
-        input_ids_v.push_back(2);
-    }
-    
-    input_ids_v.push_back(0);
-    std::rotate(input_ids_v.rbegin(), input_ids_v.rbegin() + 1, input_ids_v.rend());
-    
+int Model::predict(const TokenizerResult* tokenizer_result, ModelResult* result) {
+    std::vector<int32_t> input_ids_v(tokenizer_result->input_ids, tokenizer_result->input_ids + tokenizer_result->size);
     Ort::AllocatorWithDefaultOptions allocator;
     size_t num_input_nodes = this->session->GetInputCount();
     size_t num_output_nodes = this->session->GetOutputCount();
@@ -77,11 +52,55 @@ int ModelInferenceWrapper::infer(const char* text, ModelInferenceResult* result)
     std::vector<Ort::Value> output_tensors = this->session->Run(Ort::RunOptions{}, input_node_names.data(), ort_inputs.data(), ort_inputs.size(), output_node_names.data(), output_node_names.size());
     float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
     float* sentence_embedding = output_tensors.front().GetTensorMutableData<float>();
-    result->weigths = new float[384];
+    result->weigths = new float[this->hidden_size];
     
-    std::memcpy(result->weigths, sentence_embedding, sizeof(float)*384);
+    std::memcpy(result->weigths, sentence_embedding, sizeof(float) * this->hidden_size);
     
-    result->size = 384;
+    result->size = this->hidden_size;
+    result->performance = ms;
+    
+    return 0;
+}
+
+Tokenizer::Tokenizer(const char* tokenizer_path, int32_t max_seq_length) {
+    std::string str_tokenizer_model_path(tokenizer_path);
+
+    const auto status = this->tokenizer.Load(str_tokenizer_model_path);
+    
+    if (!status.ok()) {
+        std::cerr << status.ToString() << std::endl;
+    }
+    
+    this->max_seq_length = max_seq_length;
+}
+
+int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
+    if (!this->tokenizer.status().ok()) {
+        return 1;
+    }
+    
+    std::vector<int32_t> input_ids_v;
+    std::string content(text);
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    this->tokenizer.Encode(content, &input_ids_v);
+    float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+    
+    std::transform(input_ids_v.begin(), input_ids_v.end(), input_ids_v.begin(), [](int id){return id+1;});
+    
+    if (input_ids_v.size() > this->max_seq_length - 2) {
+        input_ids_v.resize(this->max_seq_length - 2);
+        input_ids_v.push_back(2);
+    }
+    
+    input_ids_v.push_back(0);
+    
+    std::rotate(input_ids_v.rbegin(), input_ids_v.rbegin() + 1, input_ids_v.rend());
+    
+    result->input_ids = new int32_t[input_ids_v.size()];
+    
+    std::memcpy(result->input_ids, input_ids_v.data(), sizeof(int32_t) * input_ids_v.size());
+    
+    result->size = input_ids_v.size();
     result->performance = ms;
     
     return 0;

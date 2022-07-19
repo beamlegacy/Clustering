@@ -4,53 +4,60 @@ import CClustering
 
 
 enum CClusteringError: Error {
-    case tokenizerInitialization
+    case tokenizerError
+    case ModelError
 }
 
 
 class ModelInference {
     lazy var model: UnsafeMutableRawPointer = {
-        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources"),
-           var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
-        else {
+        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
           fatalError("Resources not found")
         }
         
         var model: UnsafeMutableRawPointer!
         let bytesModel = modelPath.utf8CString
-        let bytesTokenizer = tokenizerModelPath.utf8CString
+        //let bytesTokenizer = tokenizerModelPath.utf8CString
         
         bytesModel.withUnsafeBufferPointer { ptrModel in
-            bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
-                model = createModelInferenceWrapper(ptrModel.baseAddress, ptrTokenizer.baseAddress)
-            }
+            model = createModel(ptrModel.baseAddress, 384)
         }
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*modelPath.withUTF8 { cModelPath in
-            tokenizerModelPath.withUTF8 { cTokenizerModelPath in
-                model = createModelInferenceWrapper(cModelPath.baseAddress, cTokenizerModelPath.baseAddress)
-            }
+            model = createModel(ptrModel.baseAddress, 384)
         }*/
 
         return model
     }()
     
-    @MainActor func encode(text: String) async throws -> [Double] {
+    lazy var tokenizer: UnsafeMutableRawPointer = {
+        guard var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
+        else {
+          fatalError("Resources not found")
+        }
+        
+        var tokenizer: UnsafeMutableRawPointer!
+        let bytesTokenizer = tokenizerModelPath.utf8CString
+        
+        bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
+                tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
+        }
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
-        //var content = text
-        var result = ModelInferenceResult()
+        /*tokenizerModelPath.withUTF8 { cTokenizerModelPath in
+            tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
+        }
+        }*/
+
+        return tokenizer
+    }()
+    
+    @MainActor func encode(tokenizerResult: inout TokenizerResult) async throws -> [Double] {
+        var result = ModelResult()
         var ret: Int32 = -1
         
-        /*content.withUTF8 { cText in
-            ret = doModelInference(self.model, cText.baseAddress, &result)
-        }*/
-        let bytesText = text.utf8CString
-        
-        bytesText.withUnsafeBufferPointer { ptrText in
-            ret = doModelInference(self.model, ptrText.baseAddress, &result)
-        }
+        ret = predict(self.model, &tokenizerResult, &result)
             
         if ret == 0 {
             let vector = Array(UnsafeBufferPointer(start: result.weigths, count: Int(result.size)))
@@ -58,20 +65,35 @@ class ModelInference {
             return vector.map{Double($0)}
         }
         
-        throw CClusteringError.tokenizerInitialization
+        throw CClusteringError.ModelError
+    }
+    
+    @MainActor func tokenizeText(text: String) async throws -> TokenizerResult {
+        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
+        // to this version we could uncomment this part.
+        //var content = text
+        var result = TokenizerResult()
+        var ret: Int32 = -1
+        
+        /*content.withUTF8 { cText in
+            ret = tokenize(self.tokenizer, ptrText.baseAddress, &result)
+        }*/
+        let bytesText = text.utf8CString
+        
+        bytesText.withUnsafeBufferPointer { ptrText in
+            ret = tokenize(self.tokenizer, ptrText.baseAddress, &result)
+        }
+            
+        if ret == 0 {
+            return result
+        }
+        
+        throw CClusteringError.tokenizerError
     }
     
     deinit {
-        removeModelInferenceWrapper(self.model)
-    }
-}
-
-
-extension Double {
-    /// Rounds the double to decimal places value
-    func rounded(toPlaces places:Int) -> Double {
-        let divisor = pow(10.0, Double(places))
-        return (self * divisor).rounded() / divisor
+        removeModel(self.model)
+        removeTokenizer(self.tokenizer)
     }
 }
 
@@ -84,55 +106,18 @@ public class SmartClustering {
     @MainActor let modelInf = ModelInference()
 
     public init() {}
-
-    private func normalize(vector: [Double]) -> [Double] {
-        let normValue = cblas_dnrm2(Int32(vector.count), vector, 1)
-        
-        if normValue > 0 {
-            var normalizedVector = [Double]()
-            
-            for i in 0...vector.count - 1 {
-                normalizedVector.append((vector[i] / normValue).rounded(toPlaces: 4))
-            }
-            
-            return normalizedVector
-        }
-        
-        return vector
-    }
-
-    /// Compute the cosine similarity between two vectors
+    
+    /// Compute the pair-wised cosine similarity matrix across all the textual items.
     ///
-    /// - Parameters:
-    ///   - vector1: a vector
-    ///   - vector2: a vector
-    /// - Returns: The cosine similarity between the two given vectors.
-    private func cosineSimilarity(vector1: [Double], vector2: [Double]) -> Double {
-        let vector1Norm = normalize(vector: vector1)
-        let vector2Norm = normalize(vector: vector2)
-        
-        if vector1Norm == [Double](repeating: 0.0, count: vector1.count) || vector2Norm == [Double](repeating: 0.0, count: vector1.count) {
-            return 0.0.rounded(toPlaces: 4)
-        }
-        
-        let vector1NormVector2NormDotProduct = cblas_ddot(Int32(vector1Norm.count), vector1Norm, 1, vector2Norm, 1)
-        let vector1NormDotProduct = cblas_ddot(Int32(vector1Norm.count), vector1Norm, 1, vector1Norm, 1)
-        let vector2NormDotProduct = cblas_ddot(Int32(vector2Norm.count), vector2Norm, 1, vector2Norm, 1)
-        let sqrtVector1NormDotProduct = pow(vector1NormDotProduct, 0.5)
-        let sqrtVector2NormDotProduct = pow(vector2NormDotProduct, 0.5)
-        let similarity = vector1NormVector2NormDotProduct / (sqrtVector1NormDotProduct * sqrtVector2NormDotProduct)
-        
-        return similarity.rounded(toPlaces: 4)
-    }
-
-    private func overallCosineSimilarity() -> [[Double]] {
+    /// - Returns:  The pair-wised cosine similarity matrix.
+    func cosineSimilarityMatrix() -> [[Double]] {
         var cosineSimilarities = [[Double]]()
         
         for i in 0...self.textualItems.count - 1 {
             var currentCosineSimilarities = [Double]()
             
             for j in 0...self.textualItems.count - 1 {
-                currentCosineSimilarities.append(self.cosineSimilarity(vector1: self.textualItems[i].embedding, vector2: self.textualItems[j].embedding))
+                currentCosineSimilarities.append(MathsUtils.cosineSimilarity(vector1: self.textualItems[i].embedding, vector2: self.textualItems[j].embedding))
             }
             
             cosineSimilarities.append(currentCosineSimilarities)
@@ -141,23 +126,31 @@ public class SmartClustering {
         return cosineSimilarities
     }
 
-    private func argsort<T:Comparable>( a : [T] ) -> [Int] {
-        var r = Array(a.indices)
-        
-        r.sort(by: { a[$0] > a[$1] })
-        
-        return r
-    }
-
-    private func topk(k: Int, vector: [Double]) -> ([Double], [Int]) {
+    /// Compute the top K values and indices.
+    ///
+    /// - Parameters:
+    ///    - k: Size limit.
+    ///    - vector: Vector from which to compute the top k.
+    /// - Returns: - values: The top K array.
+    ///            - indices: The indices of the top K array.
+    private func topk(k: Int, vector: [Double]) -> (values: [Double], indices: [Int]) {
         var sortedVector = vector
+        var indicesVector = Array(vector.indices)
         
         sortedVector.sort(by: { $0 > $1 })
+        indicesVector.sort(by: { vector[$0] > vector[$1] })
         
-        return (Array(sortedVector[0...k-1]), Array(self.argsort(a: vector)[0...k-1]))
+        return (Array(sortedVector[0...k-1]), Array(indicesVector[0...k-1]))
     }
 
-    private func overallTopk(k: Int, vector: [[Double]]) -> ([[Double]], [[Int]]) {
+    /// Compute the pair-wised top K matrix values and indices from the pair-wised cosine similarity matrix.
+    ///
+    /// - Parameters:
+    ///    - k: Size limit.
+    ///    - vector: Vector from which to compute the top k.
+    /// - Returns: - values: The pairwised top K matrix.
+    ///            - indices: The indices of the pairwised top K matrix.
+    private func topkMatrix(k: Int, vector: [[Double]]) -> (values: [[Double]], indices: [[Int]]) {
         var values = [[Double]]()
         var indices = [[Int]]()
         
@@ -171,12 +164,13 @@ public class SmartClustering {
         return (values, indices)
     }
 
+    /// The main function that creates the clusters.
     private func createClusters() {
         var extractedClusters = [[Int]]()
         var nullClusters = [Int]()
         let sortMaxSize = self.textualItems.count
-        let cosScores = self.overallCosineSimilarity()
-        let topkValues = self.overallTopk(k: 1, vector: cosScores).0
+        let cosScores = self.cosineSimilarityMatrix()
+        let topkValues = self.topkMatrix(k: 1, vector: cosScores).0
         
         for i in 0...topkValues.count - 1 {
             if let lastElement = topkValues[i].last {
@@ -244,6 +238,11 @@ public class SmartClustering {
         assert(total == self.textualItems.count)
     }
 
+    /// Find the index of a given UUID textual item.
+    ///
+    /// - Parameters:
+    ///   - of: The textual item UUID to find.
+    /// - Returns: The corresponding index.
     private func findTextualItemIndex(of: UUID) -> Int {
         for (idx, val) in self.textualItems.enumerated() {
             if val.uuid == of {
@@ -254,7 +253,13 @@ public class SmartClustering {
         return -1
     }
     
-    private func findTextualItemIndexInClusters(of: UUID) -> (Int, Int) {
+    /// Find the cluster index of a given UUID textual item.
+    ///
+    /// - Parameters:
+    ///   - of: The textual item UUID to find.
+    /// - Returns: - clusterIndex: First dimension index.
+    ///            - indexInCluster: Second dimension index.
+    private func findTextualItemIndexInClusters(of: UUID) -> (clusterIndex: Int, indexInCluster: Int) {
         for (clusterIdx, cluster) in self.clusters.enumerated() {
             for (idx, uuid) in cluster.enumerated() {
                 if uuid == of {
@@ -266,6 +271,11 @@ public class SmartClustering {
         return (-1, -1)
     }
 
+    /// Create the clusters of a given textual item type.
+    ///
+    /// - Parameters:
+    ///   - of: The type of the needed clusters.
+    /// - Returns: The clusters.
     private func createTextualItemGroups(of: TextualItemType) -> [[UUID]] {
         var textualItemGroups = [[UUID]]()
         
@@ -286,6 +296,12 @@ public class SmartClustering {
         return textualItemGroups
     }
 
+    /// Remove the given textual item and recompute the clusters.
+    ///
+    /// - Parameters:
+    ///   - textualItem: The textual item to be removed.
+    /// - Returns: - pageGroups: Newly computed pages cluster.
+    ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
         let index = self.findTextualItemIndex(of: textualItemUUID)
         
@@ -309,8 +325,8 @@ public class SmartClustering {
     ///
     /// - Parameters:
     ///   - textualItem: The textual item to be added.
-    /// - Returns: - pageGroups: Array of arrays of all pages clustered into groups
-    ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
+    /// - Returns: - pageGroups: Array of arrays of all pages clustered into groups.
+    ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
     public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
         self.textualItems.append(textualItem)
         
@@ -321,7 +337,8 @@ public class SmartClustering {
                 if text.isEmpty {
                     self.textualItems[idx].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: 384))
                 } else {
-                    let embedding = try await self.modelInf.encode(text: text)
+                    var tokenizedText = try await self.modelInf.tokenizeText(text: text)
+                    let embedding = try await self.modelInf.encode(tokenizerResult: &tokenizedText)
                     self.textualItems[idx].updateEmbedding(newEmbedding: embedding)
                 }
             }
@@ -334,7 +351,13 @@ public class SmartClustering {
         
         return (pageGroups: pageGroups, noteGroups: noteGroups)
     }
-    
+
+    /// Update the comparison threshold and recompute the clusters.
+    ///
+    /// - Parameters:
+    ///   - threshold: The new comparison threshold.
+    /// - Returns: - pageGroups: Newly computed pages cluster.
+    ///            - noteGroups: Newly computed notes cluster.
     public func changeCandidate(threshold: Double) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
         self.thresholdComparison = threshold
         
