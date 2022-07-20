@@ -333,7 +333,7 @@ public class SmartClustering {
         
         for (idx, item) in self.textualItems.enumerated() {
             if item.embedding.count == 0 {
-                let text = (textualItem.title + "</s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+                let text = (textualItem.title + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 if text.isEmpty {
                     self.textualItems[idx].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))

@@ -30,7 +30,7 @@ class SmartClusteringTests: XCTestCase {
 
         expect(clusteredPageIds.count).to(equal(3))
         
-        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.2238).pageGroups
+        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.2825).pageGroups
         
         expect(clusteredPageIds.count).to(equal(2))
     }
