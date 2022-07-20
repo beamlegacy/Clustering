@@ -63,7 +63,7 @@ public struct Page {
         self.beApart = beApart
     }
     
-    func toTextualItem() -> TextualItem {
+    public func toTextualItem() -> TextualItem {
         let urlStr: String = self.url?.description ?? ""
         return TextualItem(id: self.id, url: urlStr, title: self.title ?? "", originalContent: self.originalContent, cleanedContent: self.cleanedContent, type: TextualItemType.page, parentId: self.parentId, language: self.language, beWith: self.beWith, beApart: self.beApart)
     }
@@ -87,7 +87,7 @@ public struct ClusteringNote {
         self.language = language
     }
     
-    func toTextualItem() -> TextualItem {
+    public func toTextualItem() -> TextualItem {
         return TextualItem(id: self.id, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
     }
 }
