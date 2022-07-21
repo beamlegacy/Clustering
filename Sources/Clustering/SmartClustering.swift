@@ -111,8 +111,8 @@ public class SmartClustering {
     /// Compute the pair-wised cosine similarity matrix across all the textual items.
     ///
     /// - Returns:  The pair-wised cosine similarity matrix.
-    func cosineSimilarityMatrix() -> [[Double]] {
-        var cosineSimilarities = [[Double]]()
+    func cosineSimilarityMatrix() {
+        self.similarities = [[Double]]()
         
         for i in 0...self.textualItems.count - 1 {
             var currentCosineSimilarities = [Double]()
@@ -121,10 +121,8 @@ public class SmartClustering {
                 currentCosineSimilarities.append(MathsUtils.cosineSimilarity(vector1: self.textualItems[i].embedding, vector2: self.textualItems[j].embedding))
             }
             
-            cosineSimilarities.append(currentCosineSimilarities)
+            self.similarities.append(currentCosineSimilarities)
         }
-        
-        return cosineSimilarities
     }
 
     /// Compute the top K values and indices.
@@ -148,15 +146,14 @@ public class SmartClustering {
     ///
     /// - Parameters:
     ///    - k: Size limit.
-    ///    - vector: Vector from which to compute the top k.
     /// - Returns: - values: The pairwised top K matrix.
     ///            - indices: The indices of the pairwised top K matrix.
-    private func topkMatrix(k: Int, vector: [[Double]]) -> (values: [[Double]], indices: [[Int]]) {
+    private func topkMatrix(k: Int) -> (values: [[Double]], indices: [[Int]]) {
         var values = [[Double]]()
         var indices = [[Int]]()
         
-        for i in 0...vector.count - 1 {
-            let tmpValuesIndices = self.topk(k: k, vector: vector[i])
+        for i in 0...self.similarities.count - 1 {
+            let tmpValuesIndices = self.topk(k: k, vector: self.similarities[i])
             
             values.append(tmpValuesIndices.0)
             indices.append(tmpValuesIndices.1)
@@ -170,8 +167,10 @@ public class SmartClustering {
         var extractedClusters = [[Int]]()
         var nullClusters = [Int]()
         let sortMaxSize = self.textualItems.count
-        let cosScores = self.cosineSimilarityMatrix()
-        let topkValues = self.topkMatrix(k: 1, vector: cosScores).0
+        
+        self.cosineSimilarityMatrix()
+        
+        let topkValues = self.topkMatrix(k: 1).0
         
         for i in 0...topkValues.count - 1 {
             if let lastElement = topkValues[i].last {
@@ -179,7 +178,7 @@ public class SmartClustering {
                     nullClusters.append(i)
                 } else if (lastElement >= self.thresholdComparison) {
                     var newCluster = [Int]()
-                    let topkRes = self.topk(k: sortMaxSize, vector: cosScores[i])
+                    let topkRes = self.topk(k: sortMaxSize, vector: self.similarities[i])
                     let topValLarge = topkRes.0
                     let topIdxLarge = topkRes.1
                     
@@ -193,7 +192,7 @@ public class SmartClustering {
                                 newCluster.append(idx)
                             }
                         } else {
-                            for (idx, val) in cosScores[i].enumerated() {
+                            for (idx, val) in self.similarities[i].enumerated() {
                                 if val >= self.thresholdComparison {
                                     newCluster.append(idx)
                                 }
@@ -320,6 +319,23 @@ public class SmartClustering {
         
         return (pageGroups: pageGroups, noteGroups: noteGroups)
     }
+    
+    /// Turns the similarities matrix to a dict of dict.
+    ///
+    /// - Returns: A dict of dict representing the similarities across the textual items.
+    private func createSimilarities() -> [UUID: [UUID: Double]] {
+        var dict: [UUID: [UUID: Double]] = [:]
+        
+        for i in 0...self.textualItems.count - 1 {
+            dict[self.textualItems[i].uuid] = [:]
+            
+            for j in 0...self.textualItems.count - 1 {
+                dict[self.textualItems[i].uuid]?[self.textualItems[j].uuid] = self.similarities[i][j]
+            }
+        }
+        
+        return dict
+    }
 
     /// The main function to access the package, adding a textual item
     /// to the clustering process.
@@ -328,7 +344,8 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be added.
     /// - Returns: - pageGroups: Array of arrays of all pages clustered into groups.
     ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
-    public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+    ///            - similarities: Dict of dict of similiarity scores across each textual items.
+    public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.textualItems.append(textualItem)
         
         for (idx, item) in self.textualItems.enumerated() {
@@ -347,10 +364,11 @@ public class SmartClustering {
         
         self.createClusters()
         
+        let similarities = self.createSimilarities()
         let pageGroups = self.createTextualItemGroups(of: TextualItemType.page)
         let noteGroups = self.createTextualItemGroups(of: TextualItemType.note)
         
-        return (pageGroups: pageGroups, noteGroups: noteGroups)
+        return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
     }
 
     /// Update the comparison threshold and recompute the clusters.
