@@ -29,6 +29,15 @@ public struct InformationForId: Equatable {
     public var entitiesInTitle: EntitiesInText? = nil
     public var language: NLLanguage? = nil
     public var parentId: UUID? = nil
+
+    public init(title: String? = nil, cleanedContent: String? = nil, entitiesInText: EntitiesInText? = nil, entitiesInTitle: EntitiesInText? = nil, language: NLLanguage? = nil, parentId: UUID? = nil) {
+        self.title = title
+        self.cleanedContent = cleanedContent
+        self.entitiesInText = entitiesInText
+        self.entitiesInTitle = entitiesInTitle
+        self.language = language
+        self.parentId = parentId
+    }
     
     public var isEmpty: Bool {
         title == nil && cleanedContent == nil
