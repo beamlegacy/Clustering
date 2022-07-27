@@ -14,7 +14,7 @@ class ModelInference {
     var model: UnsafeMutableRawPointer!
     var tokenizer: UnsafeMutableRawPointer!
     
-    func prepare() {
+    func prepare() async {
         self.prepareModel()
         self.prepareTokenizer()
     }
@@ -113,8 +113,8 @@ public class SmartClustering {
 
     public init() {}
     
-    public func prepare() {
-        self.modelInf.prepare()
+    public func prepare() async {
+        await self.modelInf.prepare()
     }
     
     /// Compute the pair-wised cosine similarity matrix across all the textual items.
