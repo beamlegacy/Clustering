@@ -5,8 +5,7 @@
 //
 
 #include "../clustering.hpp"
-#include <iostream>
-#include <algorithm>
+
 
 extern "C" void* createModel(const char* model_path, int32_t hidden_size) {
     Model* model = new Model(model_path, hidden_size);
@@ -14,7 +13,7 @@ extern "C" void* createModel(const char* model_path, int32_t hidden_size) {
     return (void*) model;
 }
 
-extern "C" int predict(void* handle, struct TokenizerResult* tokenizer_result, struct ModelResult* result) {
+extern "C" int predict(void* handle, const struct TokenizerResult* tokenizer_result, struct ModelResult* result) {
     Model* model = (Model*)handle;
     model->predict(tokenizer_result, result);
     

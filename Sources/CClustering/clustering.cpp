@@ -6,8 +6,6 @@
 //
 
 #include "clustering.hpp"
-#include <iostream>
-#include <vector>
 
 
 Model::Model(const char* model_path, int32_t hidden_size) {

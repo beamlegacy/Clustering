@@ -23,7 +23,7 @@ struct TokenizerResult {
 
 
 void* createModel(const char* model_path, int32_t hidden_size);
-int predict(void* handle, struct TokenizerResult* tokenizer_result, struct ModelResult* result);
+int predict(void* handle, const struct TokenizerResult* tokenizer_result, struct ModelResult* result);
 void removeModel(void* handle);
 
 void* createTokenizer(const char* tokenizer_path, int32_t max_seq_length);

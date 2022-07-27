@@ -11,6 +11,8 @@
 #include "onnxruntime_cxx_api.h"
 #include <iostream>
 #include <chrono>
+#include <algorithm>
+#include <vector>
 
 
 struct ModelResult {

@@ -11,38 +11,42 @@ enum CClusteringError: Error {
 
 class ModelInference {
     let hidden_size: Int32 = 384
-    lazy var model: UnsafeMutableRawPointer = {
-        guard var modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
+    var model: UnsafeMutableRawPointer!
+    var tokenizer: UnsafeMutableRawPointer!
+    
+    func prepare() {
+        self.prepareModel()
+        self.prepareTokenizer()
+    }
+    
+    private func prepareModel() {
+        guard let modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
           fatalError("Resources not found")
         }
         
-        var model: UnsafeMutableRawPointer!
         let bytesModel = modelPath.utf8CString
         //let bytesTokenizer = tokenizerModelPath.utf8CString
         
         bytesModel.withUnsafeBufferPointer { ptrModel in
-            model = createModel(ptrModel.baseAddress, self.hidden_size)
+            self.model = createModel(ptrModel.baseAddress, self.hidden_size)
         }
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*modelPath.withUTF8 { cModelPath in
             model = createModel(ptrModel.baseAddress, 384)
         }*/
-
-        return model
-    }()
+    }
     
-    lazy var tokenizer: UnsafeMutableRawPointer = {
-        guard var tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
+    private func prepareTokenizer() {
+        guard let tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
         else {
           fatalError("Resources not found")
         }
         
-        var tokenizer: UnsafeMutableRawPointer!
         let bytesTokenizer = tokenizerModelPath.utf8CString
         
         bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
-                tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
+            self.tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
         }
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
@@ -50,11 +54,11 @@ class ModelInference {
             tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
         }
         }*/
-
-        return tokenizer
-    }()
+    }
     
     @MainActor func encode(tokenizerResult: inout TokenizerResult) async throws -> [Double] {
+        assert(self.model != nil, "The model is not loaded, call the `prepare` method.")
+        
         var result = ModelResult()
         var ret: Int32 = -1
         
@@ -70,6 +74,7 @@ class ModelInference {
     }
     
     @MainActor func tokenizeText(text: String) async throws -> TokenizerResult {
+        assert(self.tokenizer != nil, "The tokenizer is not loaded, call the `prepare` method.")
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         //var content = text
@@ -108,10 +113,14 @@ public class SmartClustering {
 
     public init() {}
     
+    public func prepare() {
+        self.modelInf.prepare()
+    }
+    
     /// Compute the pair-wised cosine similarity matrix across all the textual items.
     ///
     /// - Returns:  The pair-wised cosine similarity matrix.
-    func cosineSimilarityMatrix() {
+    private func cosineSimilarityMatrix() {
         self.similarities = [[Double]]()
         
         for i in 0...self.textualItems.count - 1 {
@@ -274,9 +283,9 @@ public class SmartClustering {
     /// Create the clusters of a given textual item type.
     ///
     /// - Parameters:
-    ///   - of: The type of the needed clusters.
+    ///   - itemType: The type of the needed clusters.
     /// - Returns: The clusters.
-    private func createTextualItemGroups(of: TextualItemType) -> [[UUID]] {
+    private func createTextualItemGroups(itemType: TextualItemType) -> [[UUID]] {
         var textualItemGroups = [[UUID]]()
         
         for cluster in self.clusters {
@@ -285,7 +294,7 @@ public class SmartClustering {
             for val in cluster {
                 let type = self.textualItems[self.findTextualItemIndex(of: val)].type
                 
-                if type == of {
+                if type == itemType {
                     uniqueCluster.append(val)
                 }
             }
@@ -307,15 +316,22 @@ public class SmartClustering {
         
         if index != -1 {
             self.textualItems.remove(at: index)
+            
             let (clusterIdx, textualItemIdx) = self.findTextualItemIndexInClusters(of: textualItemUUID)
             
             if (clusterIdx != -1 && textualItemIdx != -1) {
                 self.clusters[clusterIdx].remove(at: textualItemIdx)
             }
+            
+            for i in 0...self.similarities.count - 1 {
+                similarities[i].remove(at: index)
+            }
+
+            similarities.remove(at: index)
         }
         
-        let pageGroups = self.createTextualItemGroups(of: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(of: TextualItemType.note)
+        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         return (pageGroups: pageGroups, noteGroups: noteGroups)
     }
@@ -365,8 +381,8 @@ public class SmartClustering {
         self.createClusters()
         
         let similarities = self.createSimilarities()
-        let pageGroups = self.createTextualItemGroups(of: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(of: TextualItemType.note)
+        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
     }
@@ -382,8 +398,8 @@ public class SmartClustering {
         
         self.createClusters()
         
-        let pageGroups = self.createTextualItemGroups(of: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(of: TextualItemType.note)
+        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         return (pageGroups: pageGroups, noteGroups: noteGroups)
     }

@@ -6,6 +6,9 @@ import XCTest
 class SmartClusteringTests: XCTestCase {
     func testGoogleSearchClustering() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var UUIDs: [UUID] = []
         
         for _ in 0...8 {
@@ -37,6 +40,9 @@ class SmartClusteringTests: XCTestCase {
 
     func testMultilingualPages() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var UUIDs: [UUID] = []
         
         for _ in 0...4 {
@@ -61,6 +67,9 @@ class SmartClusteringTests: XCTestCase {
     
     func testLongAndShortText() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var UUIDs: [UUID] = []
         
         for _ in 0...5 {
@@ -86,6 +95,9 @@ class SmartClusteringTests: XCTestCase {
     
     func testFullemptyPages() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var UUIDs: [UUID] = []
         
         for _ in 0...8 {
@@ -113,6 +125,9 @@ class SmartClusteringTests: XCTestCase {
     
     func testMixPageNote() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var pageUUIDs: [UUID] = []
         var noteUUIDs: [UUID] = []
         
@@ -141,6 +156,9 @@ class SmartClusteringTests: XCTestCase {
     
     func testRemoveTextualItem() async throws {
         let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
         var pageUUIDs: [UUID] = []
         var clusteredPageIds: [[UUID]] = []
         
