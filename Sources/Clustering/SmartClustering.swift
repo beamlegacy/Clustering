@@ -12,6 +12,8 @@ enum CClusteringError: Error {
 class ModelInference {
     let hidden_size: Int32 = 384
     var model: UnsafeMutableRawPointer!
+    var loadingModel = false
+    var loadingTokenizer = false
     var tokenizer: UnsafeMutableRawPointer!
     
     func prepare() async {
@@ -20,6 +22,18 @@ class ModelInference {
     }
     
     private func prepareModel() {
+        if self.model != nil {
+            return
+        }
+        
+        if self.loadingModel {
+            repeat {
+            } while !self.loadingModel
+            
+            return
+        }
+        
+        self.loadingModel = true
         guard let modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
           fatalError("Resources not found")
         }
@@ -30,6 +44,8 @@ class ModelInference {
         bytesModel.withUnsafeBufferPointer { ptrModel in
             self.model = createModel(ptrModel.baseAddress, self.hidden_size)
         }
+        
+        self.loadingModel = false
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*modelPath.withUTF8 { cModelPath in
@@ -38,6 +54,18 @@ class ModelInference {
     }
     
     private func prepareTokenizer() {
+        if self.tokenizer != nil {
+            return
+        }
+        
+        if self.loadingTokenizer {
+            repeat {
+            } while !self.loadingTokenizer
+            
+            return
+        }
+        
+        self.loadingTokenizer = true
         guard let tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
         else {
           fatalError("Resources not found")
@@ -48,6 +76,8 @@ class ModelInference {
         bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
             self.tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
         }
+        
+        self.loadingTokenizer = false
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*tokenizerModelPath.withUTF8 { cTokenizerModelPath in
@@ -57,8 +87,6 @@ class ModelInference {
     }
     
     @MainActor func encode(tokenizerResult: inout TokenizerResult) async throws -> [Double] {
-        assert(self.model != nil, "The model is not loaded, call the `prepare` method.")
-        
         var result = ModelResult()
         var ret: Int32 = -1
         
@@ -74,7 +102,6 @@ class ModelInference {
     }
     
     @MainActor func tokenizeText(text: String) async throws -> TokenizerResult {
-        assert(self.tokenizer != nil, "The tokenizer is not loaded, call the `prepare` method.")
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         //var content = text
