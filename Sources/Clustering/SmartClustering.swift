@@ -313,7 +313,7 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be removed.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+    public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.lock.lock()
         let index = self.findTextualItemIndex(of: textualItemUUID)
         
@@ -333,11 +333,12 @@ public class SmartClustering {
             similarities.remove(at: index)
         }
         
+        let similarities = self.createSimilarities()
         let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         self.lock.unlock()
         
-        return (pageGroups: pageGroups, noteGroups: noteGroups)
+        return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
     }
     
     /// Turns the similarities matrix to a dict of dict.
