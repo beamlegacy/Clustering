@@ -26,14 +26,6 @@ class ModelInference {
             return
         }
         
-        if self.loadingModel {
-            repeat {
-            } while self.loadingModel
-            
-            return
-        }
-        
-        self.loadingModel = true
         guard let modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
           fatalError("Resources not found")
         }
@@ -45,7 +37,6 @@ class ModelInference {
             self.model = createModel(ptrModel.baseAddress, self.hidden_size)
         }
         
-        self.loadingModel = false
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*modelPath.withUTF8 { cModelPath in
@@ -58,14 +49,6 @@ class ModelInference {
             return
         }
         
-        if self.loadingTokenizer {
-            repeat {
-            } while self.loadingTokenizer
-
-            return
-        }
-        
-        self.loadingTokenizer = true
         guard let tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
         else {
           fatalError("Resources not found")
@@ -77,7 +60,6 @@ class ModelInference {
             self.tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
         }
         
-        self.loadingTokenizer = false
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         /*tokenizerModelPath.withUTF8 { cTokenizerModelPath in
@@ -389,20 +371,27 @@ public class SmartClustering {
     ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
     ///            - similarities: Dict of dict of similiarity scores across each textual items.
     public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
+        repeat {
+        } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
+        
+        var text = ""
         self.textualItems.append(textualItem)
         
-        for (idx, item) in self.textualItems.enumerated() {
-            if item.embedding.count == 0 {
-                let text = (textualItem.title + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
-                
-                if text.isEmpty {
-                    self.textualItems[idx].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
-                } else {
-                    var tokenizedText = try await self.modelInf.tokenizeText(text: text)
-                    let embedding = try await self.modelInf.encode(tokenizerResult: &tokenizedText)
-                    self.textualItems[idx].updateEmbedding(newEmbedding: embedding)
-                }
-            }
+        if !textualItem.title.isEmpty && textualItem.content.isEmpty {
+            text = textualItem.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if textualItem.title.isEmpty && !textualItem.content.isEmpty {
+            text = textualItem.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if !textualItem.title.isEmpty && !textualItem.content.isEmpty {
+            text = (textualItem.title + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        if text.isEmpty {
+            self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
+        } else {
+            var tokenizedText = try await self.modelInf.tokenizeText(text: text)
+            let embedding = try await self.modelInf.encode(tokenizerResult: &tokenizedText)
+            
+            self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
         }
         
         self.createClusters()
