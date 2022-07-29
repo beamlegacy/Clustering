@@ -333,9 +333,15 @@ public class SmartClustering {
             similarities.remove(at: index)
         }
         
-        let similarities = self.createSimilarities()
-        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        var similarities = [UUID: [UUID: Double]]()
+        var pageGroups = [[UUID]]()
+        var noteGroups = [[UUID]]()
+        
+        if self.textualItems.count > 0 {
+            similarities = self.createSimilarities()
+            pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+            noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        }
         self.lock.unlock()
         
         return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
