@@ -12,8 +12,6 @@ enum CClusteringError: Error {
 class ModelInference {
     let hidden_size: Int32 = 384
     var model: UnsafeMutableRawPointer!
-    var loadingModel = false
-    var loadingTokenizer = false
     var tokenizer: UnsafeMutableRawPointer!
     
     func prepare() {
@@ -118,6 +116,8 @@ public class SmartClustering {
     var textualItems = [TextualItem]()
     var clusters = [[UUID]]()
     var similarities = [[Double]]()
+    let lockAdd = NSLock()
+    let lockRemove = NSLock()
     @MainActor let modelInf = ModelInference()
 
     public init() {}
@@ -315,6 +315,7 @@ public class SmartClustering {
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+        self.lockRemove.lock()
         let index = self.findTextualItemIndex(of: textualItemUUID)
         
         if index != -1 {
@@ -335,6 +336,7 @@ public class SmartClustering {
         
         let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        self.lockRemove.unlock()
         
         return (pageGroups: pageGroups, noteGroups: noteGroups)
     }
@@ -365,6 +367,7 @@ public class SmartClustering {
     ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
     ///            - similarities: Dict of dict of similiarity scores across each textual items.
     public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
+        self.lockAdd.lock()
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
         
@@ -393,8 +396,10 @@ public class SmartClustering {
         let similarities = self.createSimilarities()
         let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
-        
+        self.lockAdd.unlock()
+                
         return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
+            
     }
 
     /// Update the comparison threshold and recompute the clusters.

@@ -4,6 +4,90 @@ import XCTest
 
 
 class SmartClusteringTests: XCTestCase {
+    func testConcurrentAdd() async throws {
+        let cluster = SmartClustering()
+        let exp = expectation(description: "Add")
+        
+        cluster.prepare()
+        
+        var UUIDs: [UUID] = []
+        
+        for _ in 0...8 {
+            UUIDs.append(UUID())
+        }
+        
+        let textualItems = [
+            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+        ]
+        
+        for texualItem in textualItems {
+            Task {
+                _ = try await cluster.add(textualItem: texualItem).pageGroups
+            }
+        }
+        
+        while true {
+            if cluster.textualItems.count == 8 {
+                exp.fulfill()
+                break
+            }
+        }
+        
+        await waitForExpectations(timeout: 4)
+        
+        expect(cluster.clusters.count).to(equal(3))
+    }
+    
+    func testAddBeforePrepareEnds() async throws {
+        let cluster = SmartClustering()
+        let exp = expectation(description: "Add")
+        
+        var UUIDs: [UUID] = []
+        
+        for _ in 0...8 {
+            UUIDs.append(UUID())
+        }
+        
+        let textualItems = [
+            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+        ]
+        
+        Task {
+            cluster.prepare()
+        }
+        
+        for texualItem in textualItems {
+            Task {
+                _ = try await cluster.add(textualItem: texualItem).pageGroups
+            }
+        }
+        
+        while true {
+            if cluster.textualItems.count == 8 {
+                exp.fulfill()
+                break
+            }
+        }
+        
+        await waitForExpectations(timeout: 4)
+        
+        expect(cluster.clusters.count).to(equal(3))
+    }
+    
     func testGoogleSearchClustering() async throws {
         let cluster = SmartClustering()
         
