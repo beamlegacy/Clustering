@@ -29,18 +29,14 @@ class SmartClusteringTests: XCTestCase {
         
         for texualItem in textualItems {
             Task {
-                _ = try await cluster.add(textualItem: texualItem).pageGroups
+                _ = try await cluster.add(textualItem: texualItem)
             }
         }
         
-        while true {
-            if cluster.textualItems.count == 8 {
-                exp.fulfill()
-                break
-            }
-        }
+        sleep(1)
+        exp.fulfill()
         
-        await waitForExpectations(timeout: 4)
+        await waitForExpectations(timeout: 2)
         
         expect(cluster.clusters.count).to(equal(3))
     }
@@ -76,14 +72,10 @@ class SmartClusteringTests: XCTestCase {
             }
         }
         
-        while true {
-            if cluster.textualItems.count == 8 {
-                exp.fulfill()
-                break
-            }
-        }
+        sleep(1)
+        exp.fulfill()
         
-        await waitForExpectations(timeout: 4)
+        await waitForExpectations(timeout: 2)
         
         expect(cluster.clusters.count).to(equal(3))
     }
