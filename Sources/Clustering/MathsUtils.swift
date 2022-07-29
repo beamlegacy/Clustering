@@ -30,7 +30,7 @@ class MathsUtils {
             var normalizedVector = [Double]()
             
             for i in 0...vector.count - 1 {
-                normalizedVector.append((vector[i] / normValue).rounded(toPlaces: 4))
+                normalizedVector.append((vector[i] / normValue))
             }
             
             return normalizedVector

@@ -202,11 +202,7 @@ public class SmartClustering {
                     
                     if let lastVal = topValLarge.last {
                         if lastVal < self.thresholdComparison {
-                            for (idx, val) in zip(topIdxLarge, topValLarge) {
-                                if val < self.thresholdComparison {
-                                    break
-                                }
-                                
+                            for (idx, val) in zip(topIdxLarge, topValLarge) where val > self.thresholdComparison {
                                 newCluster.append(idx)
                             }
                         } else {
@@ -240,11 +236,9 @@ public class SmartClustering {
             
             sortedCluster.sort(by: { $0 < $1 })
             
-            for idx in sortedCluster {
-                if !extractedIds.contains(idx) {
-                    nonOverlappedCluster.append(self.textualItems[idx].uuid)
-                    extractedIds.update(with: idx)
-                }
+            for idx in sortedCluster where !extractedIds.contains(idx) {
+                nonOverlappedCluster.append(self.textualItems[idx].uuid)
+                extractedIds.update(with: idx)
             }
             
             if nonOverlappedCluster.count >= 1 {
