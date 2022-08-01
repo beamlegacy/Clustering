@@ -207,10 +207,10 @@ public struct TextualItem: Equatable {
         self.beWith = beWith
         self.beApart = beApart
         
-        self.processTitle()
+        //self.processTitle()
     }
     
-    mutating func processTitle() {
+    func processTitle() -> String {
         if !self.title.isEmpty {
             let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:\\(]\\s+")
             let splitTitle = regex.splitn(self.title)
@@ -222,8 +222,10 @@ public struct TextualItem: Equatable {
                 titleAsArray = splitTitle[0..<1]
             }
             
-            self.title = titleAsArray.joined(separator: " ").capitalized.trimmingCharacters(in: .whitespacesAndNewlines)
+            return titleAsArray.joined(separator: " ").capitalized.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+        
+        return self.title
     }
 
     mutating func updateEmbedding(newEmbedding: [Double]) {

@@ -380,15 +380,9 @@ public class SmartClustering {
         var text = ""
         self.textualItems.append(textualItem)
         
-        if !textualItem.title.isEmpty && textualItem.content.isEmpty {
-            text = textualItem.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if textualItem.title.isEmpty && !textualItem.content.isEmpty {
-            text = textualItem.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else if !textualItem.title.isEmpty && !textualItem.content.isEmpty {
-            text = (textualItem.title + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if text.isEmpty {
+        if text.isEmpty || text == "</s></s>" {
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
         } else {
             var tokenizedText = try await self.modelInf.tokenizeText(text: text)
@@ -402,6 +396,17 @@ public class SmartClustering {
         let similarities = self.createSimilarities()
         let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        
+        #if DEBUG
+        for val in self.textualItems {
+            print("FROM CLUSTERING => URL: ", val.url)
+            print("FROM CLUSTERING => Title: ", val.title)
+            print("FROM CLUSTERING => Processed Title: ", val.processTitle())
+            print("FROM CLUSTERING => Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
+        }
+        print("FROM CLUSTERING => Similarities: ", self.similarities)
+        #endif
+        
         self.lock.unlock()
                 
         return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
