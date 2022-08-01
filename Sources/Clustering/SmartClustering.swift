@@ -416,6 +416,7 @@ public class SmartClustering {
         print("FROM CLUSTERING - ADD: ", textualItem.uuid.description)
         
         if !self.findTextualItemIndex(of: textualItem.uuid).isEmpty {
+            print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " already exists - delete first")
             _ = try self.removeActualTextualItem(textualItemUUID: textualItem.uuid)
         }
         
