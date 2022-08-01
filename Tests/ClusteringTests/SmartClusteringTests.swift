@@ -242,7 +242,6 @@ class SmartClusteringTests: XCTestCase {
             pageUUIDs.append(UUID())
             let myPage = TextualItem(id: pageUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
             clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
-            
         }
         
         expect(clusteredPageIds[0].count) == 3

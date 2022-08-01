@@ -255,14 +255,15 @@ public class SmartClustering {
     ///   - of: The textual item UUID to find.
     /// - Returns: The corresponding index.
     private func findTextualItemIndex(of: UUID) -> [Int] {
-        var uuids = []
+        var uuids = [Int]()
+        
         for (idx, val) in self.textualItems.enumerated() {
             if val.uuid == of {
                 uuids.append(idx)
             }
         }
-        
-        return []
+
+        return uuids
     }
     
     /// Find the cluster index of a given UUID textual item.
@@ -295,10 +296,14 @@ public class SmartClustering {
             var uniqueCluster = [UUID]()
             
             for val in cluster {
-                let type = self.textualItems[self.findTextualItemIndex(of: val)].type
+                let indices = self.findTextualItemIndex(of: val)
                 
-                if type == itemType {
-                    uniqueCluster.append(val)
+                for index in indices {
+                    let type = self.textualItems[index].type
+                    
+                    if type == itemType {
+                        uniqueCluster.append(val)
+                    }
                 }
             }
             
@@ -318,7 +323,7 @@ public class SmartClustering {
         print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description)
         let indices = self.findTextualItemIndex(of: textualItemUUID)
         
-        if index.isEmpty {
+        if !indices.isEmpty {
             for index in indices {
                 print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description)
                 self.textualItems.remove(at: index)
@@ -373,7 +378,7 @@ public class SmartClustering {
     ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.lock.lock()
-        let result = self.removeActualTextualItem(textualItemUUID)
+        let result = try self.removeActualTextualItem(textualItemUUID: textualItemUUID)
         self.lock.unlock()
         
         return (pageGroups: result.pageGroups, noteGroups: result.noteGroups, similarities: result.similarities)
@@ -411,7 +416,7 @@ public class SmartClustering {
         print("FROM CLUSTERING - ADD: ", textualItem.uuid.description)
         
         if !self.findTextualItemIndex(of: textualItem.uuid).isEmpty {
-            self.removeActualTextualItem(textualItemUUID: textualItem.uuid)
+            _ = try self.removeActualTextualItem(textualItemUUID: textualItem.uuid)
         }
         
         var text = ""
