@@ -319,6 +319,7 @@ public class SmartClustering {
         let index = self.findTextualItemIndex(of: textualItemUUID)
         
         if index != -1 {
+            print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description)
             self.textualItems.remove(at: index)
             
             let (clusterIdx, textualItemIdx) = self.findTextualItemIndexInClusters(of: textualItemUUID)
@@ -332,6 +333,8 @@ public class SmartClustering {
             }
 
             similarities.remove(at: index)
+        } else {
+            print("FROM CLUSTERING - REMOVE - NOT FOUND: ", textualItemUUID.description)
         }
         
         var similarities = [UUID: [UUID: Double]]()
@@ -345,7 +348,7 @@ public class SmartClustering {
         }
         
         #if DEBUG
-        print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING ", textualItemUUID.description)
+        print("FROM CLUSTERING - REMOVE - REMAINING PAGES: ", textualItemUUID.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
             print("FROM CLUSTERING - REMOVE - URL: ", val.url)
@@ -412,7 +415,7 @@ public class SmartClustering {
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         #if DEBUG
-        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING ", textualItem.uuid.description)
+        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
             print("FROM CLUSTERING - ADD - URL: ", val.url)
