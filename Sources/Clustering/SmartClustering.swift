@@ -315,6 +315,7 @@ public class SmartClustering {
     ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.lock.lock()
+        print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description)
         let index = self.findTextualItemIndex(of: textualItemUUID)
         
         if index != -1 {
@@ -344,6 +345,7 @@ public class SmartClustering {
         }
         
         #if DEBUG
+        print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING ", textualItemUUID.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
             print("FROM CLUSTERING - REMOVE - URL: ", val.url)
@@ -388,7 +390,7 @@ public class SmartClustering {
         self.lock.lock()
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
-        
+        print("FROM CLUSTERING - ADD: ", textualItem.uuid.description)
         var text = ""
         self.textualItems.append(textualItem)
         
@@ -410,6 +412,7 @@ public class SmartClustering {
         let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         #if DEBUG
+        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING ", textualItem.uuid.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
             print("FROM CLUSTERING - ADD - URL: ", val.url)
