@@ -342,6 +342,18 @@ public class SmartClustering {
             pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
             noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         }
+        
+        #if DEBUG
+        for val in self.textualItems {
+            print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
+            print("FROM CLUSTERING - REMOVE - URL: ", val.url)
+            print("FROM CLUSTERING - REMOVE - Title: ", val.title)
+            print("FROM CLUSTERING - REMOVE - Processed Title: ", val.processTitle())
+            print("FROM CLUSTERING - REMOVE - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
+            print("--------")
+        }
+        print("FROM CLUSTERING - REMOVE - Similarities: ", self.similarities)
+        #endif
         self.lock.unlock()
         
         return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
@@ -399,12 +411,14 @@ public class SmartClustering {
         
         #if DEBUG
         for val in self.textualItems {
-            print("FROM CLUSTERING => URL: ", val.url)
-            print("FROM CLUSTERING => Title: ", val.title)
-            print("FROM CLUSTERING => Processed Title: ", val.processTitle())
-            print("FROM CLUSTERING => Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
+            print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
+            print("FROM CLUSTERING - ADD - URL: ", val.url)
+            print("FROM CLUSTERING - ADD - Title: ", val.title)
+            print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
+            print("FROM CLUSTERING - ADD - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
+            print("--------")
         }
-        print("FROM CLUSTERING => Similarities: ", self.similarities)
+        print("FROM CLUSTERING - ADD - Similarities: ", self.similarities)
         #endif
         
         self.lock.unlock()
