@@ -320,35 +320,6 @@ public class SmartClustering {
         
         return (-1, -1)
     }
-    /*
-    /// Create the clusters of a given textual item type.
-    ///
-    /// - Parameters:
-    ///   - itemType: The type of the needed clusters.
-    /// - Returns: The clusters.
-    private func createTextualItemGroups(itemType: TextualItemType) -> [[UUID]] {
-        var textualItemGroups = [[UUID]]()
-        print("CLUSTERS: ", self.clusters)
-        for cluster in self.clusters {
-            var uniqueCluster = [UUID]()
-            
-            for val in cluster {
-                let indices = self.findTextualItemIndex(of: val, from: nil)
-                print("INDICES: ", indices)
-                for index in indices {
-                    let type = self.textualItems[index].type
-                    
-                    if type == itemType {
-                        uniqueCluster.append(val)
-                    }
-                }
-            }
-            
-            textualItemGroups.append(uniqueCluster)
-        }
-        
-        return textualItemGroups
-    }*/
     
     /// Remove the given textual item and recompute the clusters.
     ///
@@ -360,8 +331,6 @@ public class SmartClustering {
         print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
         let index = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
         let coordinates = self.findTextualItemIndexInClusters(of: textualItemUUID, from: textualItemTabId)
-        print("INDICES ", index)
-        print("COORDINATES ", coordinates)
         
         if index != -1 {
             print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
@@ -386,13 +355,9 @@ public class SmartClustering {
         }
         
         var similarities = [UUID: [UUID: Double]]()
-        //var pageGroups = [[UUID]]()
-        //var noteGroups = [[UUID]]()
         
         if self.textualItems.count > 0 {
             similarities = self.createSimilarities()
-            //pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-            //noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         }
         
         #if DEBUG
@@ -479,14 +444,12 @@ public class SmartClustering {
         self.createClusters()
         
         let similarities = self.createSimilarities()
-        //let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-        //let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         #if DEBUG
         print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
-            print("FROM CLUSTERING - REMOVE - TABID: ", val.tabId)
+            print("FROM CLUSTERING - ADD - TABID: ", val.tabId)
             print("FROM CLUSTERING - ADD - URL: ", val.url)
             print("FROM CLUSTERING - ADD - Title: ", val.title)
             print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
