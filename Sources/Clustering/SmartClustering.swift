@@ -119,6 +119,7 @@ public class SmartClustering {
     var similarities = [[Double]]()
     let lock = NSLock()
     @MainActor let modelInf = ModelInference()
+    let websitesToUseOnlyTitle = ["youtube"]
 
     public init() {}
     
@@ -434,8 +435,23 @@ public class SmartClustering {
             self.textualItems.append(textualItem)
         }
         
-        let text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
-                
+        let comps = URLComponents(url: URL(string: textualItem.url)!, resolvingAgainstBaseURL: false)
+        var text = ""
+        
+        for website in self.websitesToUseOnlyTitle {
+            if let comps = comps {
+                if let host = comps.host {
+                    if host.contains(website) {
+                        text = (textualItem.processTitle() + "</s></s>").trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            }
+        }
+        
+        if text.isEmpty {
+            text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
         if text.isEmpty || text == "</s></s>" {
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
         } else {
@@ -444,7 +460,7 @@ public class SmartClustering {
             
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
         }
-        
+        print(text)
         self.createClusters()
         
         let similarities = self.createSimilarities()

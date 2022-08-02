@@ -213,18 +213,24 @@ public struct TextualItem: Equatable {
     }
     
     func processTitle() -> String {
+        let comps = URLComponents(url: URL(string: self.url)!, resolvingAgainstBaseURL: false)
+        
         if !self.title.isEmpty {
             let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:\\(]\\s+")
             let splitTitle = regex.splitn(self.title)
-            var titleAsArray: ArraySlice<String> = []
             
             if splitTitle.count > 1 {
-                titleAsArray = splitTitle[0..<splitTitle.count-1]
-            } else {
-                titleAsArray = splitTitle[0..<1]
+                let split = splitTitle[splitTitle.count - 1].split(separator: " ")
+                for s in split {
+                    if let comps = comps {
+                        if let host = comps.host {
+                            if host.split(separator: ".").contains(s.lowercased()[...String.Index(utf16Offset: s.lowercased().count-1, in: s.lowercased())]) {
+                                return splitTitle[0..<splitTitle.count-1].joined(separator: " ").capitalized.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        }
+                    }
+                }
             }
-            
-            return titleAsArray.joined(separator: " ").capitalized.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
         return self.title
