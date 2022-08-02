@@ -460,7 +460,7 @@ public class SmartClustering {
             
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
         }
-        print(text)
+
         self.createClusters()
         
         let similarities = self.createSimilarities()
