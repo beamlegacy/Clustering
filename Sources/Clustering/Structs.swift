@@ -213,9 +213,8 @@ public struct TextualItem: Equatable {
     }
     
     func processTitle() -> String {
-        let comps = URLComponents(url: URL(string: self.url)!, resolvingAgainstBaseURL: false)
-        
-        if !self.title.isEmpty {
+        if !self.title.isEmpty && !self.url.isEmpty {
+            let comps = URLComponents(url: URL(string: self.url)!, resolvingAgainstBaseURL: false)
             let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:\\(]\\s+")
             let splitTitle = regex.splitn(self.title)
             

@@ -435,14 +435,16 @@ public class SmartClustering {
             self.textualItems.append(textualItem)
         }
         
-        let comps = URLComponents(url: URL(string: textualItem.url)!, resolvingAgainstBaseURL: false)
         var text = ""
-        
-        for website in self.websitesToUseOnlyTitle {
-            if let comps = comps {
-                if let host = comps.host {
-                    if host.contains(website) {
-                        text = (textualItem.processTitle() + "</s></s>").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !textualItem.url.isEmpty {
+            let comps = URLComponents(url: URL(string: textualItem.url)!, resolvingAgainstBaseURL: false)
+            
+            for website in self.websitesToUseOnlyTitle {
+                if let comps = comps {
+                    if let host = comps.host {
+                        if host.contains(website) {
+                            text = (textualItem.processTitle() + "</s></s>").trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
                     }
                 }
             }
