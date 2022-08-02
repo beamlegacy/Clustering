@@ -47,6 +47,7 @@ public struct InformationForId: Equatable {
 
 public struct Page {
     public var id: UUID
+    public var tabId: UUID
     var parentId: UUID?
     var title: String?
     var originalContent: [String]?
@@ -60,8 +61,9 @@ public struct Page {
     var beWith: [UUID]?
     var beApart: [UUID]?
     
-    public init(id: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
+    public init(id: UUID, tabId: UUID, parentId: UUID? = nil, url: URL? = nil, title: String? = nil, originalContent: [String]? = nil, cleanedContent: String? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.id = id
+        self.tabId = tabId
         self.parentId = parentId
         self.title = title
         self.originalContent = originalContent
@@ -74,7 +76,7 @@ public struct Page {
     
     public func toTextualItem() -> TextualItem {
         let urlStr: String = self.url?.description ?? ""
-        return TextualItem(id: self.id, url: urlStr, title: self.title ?? "", originalContent: self.originalContent, cleanedContent: self.cleanedContent, type: TextualItemType.page, parentId: self.parentId, language: self.language, beWith: self.beWith, beApart: self.beApart)
+        return TextualItem(id: self.id, tabId: self.tabId, url: urlStr, title: self.title ?? "", originalContent: self.originalContent, cleanedContent: self.cleanedContent, type: TextualItemType.page, parentId: self.parentId, language: self.language, beWith: self.beWith, beApart: self.beApart)
     }
 }
 
@@ -97,7 +99,7 @@ public struct ClusteringNote {
     }
     
     public func toTextualItem() -> TextualItem {
-        return TextualItem(id: self.id, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
+        return TextualItem(id: self.id, tabId: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
     }
 }
 
@@ -173,6 +175,7 @@ public enum TextualItemType {
 
 public struct TextualItem: Equatable {
     public let uuid: UUID
+    public var tabId: UUID
     public let url: String
     let parentId: UUID?
     let language: NLLanguage?
@@ -185,8 +188,9 @@ public struct TextualItem: Equatable {
     let cleanedContent: String?
     let originalContent: [String]?
     
-    public init(id: UUID, url: String = "", title: String = "", originalContent: [String]? = nil, cleanedContent: String? = nil, type: TextualItemType, parentId: UUID? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
+    public init(id: UUID, tabId: UUID, url: String = "", title: String = "", originalContent: [String]? = nil, cleanedContent: String? = nil, type: TextualItemType, parentId: UUID? = nil, language: NLLanguage? = nil, beWith: [UUID]? = nil, beApart: [UUID]? = nil) {
         self.uuid = id
+        self.tabId = tabId
         self.url = url
         self.title = title
         self.originalContent = originalContent
@@ -206,8 +210,6 @@ public struct TextualItem: Equatable {
         self.parentId = parentId
         self.beWith = beWith
         self.beApart = beApart
-        
-        //self.processTitle()
     }
     
     func processTitle() -> String {
@@ -227,13 +229,17 @@ public struct TextualItem: Equatable {
         
         return self.title
     }
+    
+    public mutating func updateTabId(newTabId: UUID) {
+        self.tabId = newTabId
+    }
 
     mutating func updateEmbedding(newEmbedding: [Double]) {
         self.embedding = newEmbedding
     }
     
     func toPage() -> Page {
-        return Page(id: self.uuid, parentId: self.parentId, url: URL(string: self.url), title: self.title, originalContent: self.originalContent, cleanedContent: cleanedContent, language: self.language, beWith: self.beWith, beApart: self.beApart)
+        return Page(id: self.uuid, tabId: self.tabId, parentId: self.parentId, url: URL(string: self.url), title: self.title, originalContent: self.originalContent, cleanedContent: cleanedContent, language: self.language, beWith: self.beWith, beApart: self.beApart)
     }
     
     func toNote() -> ClusteringNote {

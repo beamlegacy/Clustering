@@ -10,21 +10,15 @@ class SmartClusteringTests: XCTestCase {
         
         cluster.prepare()
         
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...8 {
-            UUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
         
         for texualItem in textualItems {
@@ -38,28 +32,21 @@ class SmartClusteringTests: XCTestCase {
         
         await waitForExpectations(timeout: 2)
         
-        expect(cluster.clusters.count).to(equal(3))
+        expect(cluster.pagesClusters.count).to(equal(3))
     }
     
     func testAddBeforePrepareEnds() async throws {
         let cluster = SmartClustering()
         let exp = expectation(description: "Add")
-        
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...8 {
-            UUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
         
         Task {
@@ -77,7 +64,7 @@ class SmartClusteringTests: XCTestCase {
         
         await waitForExpectations(timeout: 2)
         
-        expect(cluster.clusters.count).to(equal(3))
+        expect(cluster.pagesClusters.count).to(equal(3))
     }
     
     func testGoogleSearchClustering() async throws {
@@ -85,21 +72,15 @@ class SmartClusteringTests: XCTestCase {
         
         cluster.prepare()
         
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...8 {
-            UUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -119,18 +100,12 @@ class SmartClusteringTests: XCTestCase {
         
         cluster.prepare()
         
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...4 {
-            UUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: SamplePageContent.frFedererWiki.url, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: SamplePageContent.frNadalWiki.url, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frFedererWiki.url, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frNadalWiki.url, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -153,12 +128,12 @@ class SmartClusteringTests: XCTestCase {
         }
         
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts", type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUIDs[5], url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -174,21 +149,15 @@ class SmartClusteringTests: XCTestCase {
         
         cluster.prepare()
         
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...8 {
-            UUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: UUIDs[0], url: "https://www.google.com/search?q=mozart", type: TextualItemType.page),
-            TextualItem(id: UUIDs[1], url: "https://www.google.com/search?q=classical%20music%20mozart", type: TextualItemType.page),
-            TextualItem(id: UUIDs[2], url: "https://www.google.com/search?q=cat", type: TextualItemType.page),
-            TextualItem(id: UUIDs[3], url: "https://www.google.com/search?q=dog", type: TextualItemType.page),
-            TextualItem(id: UUIDs[4], url: "https://www.google.com/search?q=worm", type: TextualItemType.page),
-            TextualItem(id: UUIDs[5], url: "https://www.google.com/search?q=snake", type: TextualItemType.page),
-            TextualItem(id: UUIDs[6], url: "https://www.google.com/search?q=beethoven", type: TextualItemType.page),
-            TextualItem(id: UUIDs[7], url: "https://www.google.com/search?q=musique%20classique", type: TextualItemType.page)
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -204,20 +173,12 @@ class SmartClusteringTests: XCTestCase {
         
         cluster.prepare()
         
-        var pageUUIDs: [UUID] = []
-        var noteUUIDs: [UUID] = []
-        
-        for _ in 0...2 {
-            pageUUIDs.append(UUID())
-            noteUUIDs.append(UUID())
-        }
-        
         let textualItems = [
-            TextualItem(id: pageUUIDs[0], url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: pageUUIDs[1], url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: pageUUIDs[2], url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page),
-            TextualItem(id: noteUUIDs[0], title: SamplePageContent.frFedererWiki.title, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
-            TextualItem(id: noteUUIDs[1], title: SamplePageContent.frNadalWiki.title, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), title: SamplePageContent.frFedererWiki.title, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
+            TextualItem(id: UUID(), tabId: UUID(), title: SamplePageContent.frNadalWiki.title, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
         ]
         var clusteredPageIds: [[UUID]] = []
         var clusteredNoteIds: [[UUID]] = []
@@ -236,11 +197,15 @@ class SmartClusteringTests: XCTestCase {
         cluster.prepare()
         
         var pageUUIDs: [UUID] = []
+        var tabUUIDs: [UUID] = []
         var clusteredPageIds: [[UUID]] = []
         
         for i in 0...2 {
             pageUUIDs.append(UUID())
-            let myPage = TextualItem(id: pageUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
+            tabUUIDs.append(UUID())
+            
+            let myPage = TextualItem(id: pageUUIDs[i], tabId: tabUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
+            
             clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
         }
         
@@ -249,11 +214,58 @@ class SmartClusteringTests: XCTestCase {
         expect(clusteredPageIds[0][1]) == pageUUIDs[1]
         expect(clusteredPageIds[0][2]) == pageUUIDs[2]
         
-        clusteredPageIds = try await cluster.removeTextualItem(textualItemUUID: pageUUIDs[0]).pageGroups
+        clusteredPageIds = try await cluster.removeTextualItem(textualItemUUID: pageUUIDs[0], textualItemTabId: tabUUIDs[0]).pageGroups
         
         expect(clusteredPageIds[0].count) == 2
         expect(clusteredPageIds[0][0]) == pageUUIDs[1]
         expect(clusteredPageIds[0][1]) == pageUUIDs[2]
+    }
+    
+    func testAddMultipleTimesTheSamePage() async throws {
+        let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
+        let pageUUID = UUID()
+        let tabUUID = UUID()
+        var clusteredPageIds: [[UUID]] = []
+        
+        for _ in 0...2 {
+            let myPage = TextualItem(id: pageUUID, tabId: tabUUID, url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
+            
+            clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
+        }
+        
+        expect(clusteredPageIds[0].count) == 1
+    }
+    
+    func testAddMultipleTimesTheSamePageFromDifferentTab() async throws {
+        let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
+        let pageUUID = UUID()
+        var tabUUIDs: [UUID] = []
+        var clusteredPageIds: [[UUID]] = []
+        
+        for i in 0...2 {
+            tabUUIDs.append(UUID())
+            
+            let myPage = TextualItem(id: pageUUID, tabId: tabUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
+            
+            clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
+        }
+
+        expect(clusteredPageIds[0].count) == 3
+        expect(clusteredPageIds[0][0]) == pageUUID
+        expect(clusteredPageIds[0][1]) == pageUUID
+        expect(clusteredPageIds[0][2]) == pageUUID
+        
+        clusteredPageIds = try await cluster.removeTextualItem(textualItemUUID: pageUUID, textualItemTabId: tabUUIDs[0]).pageGroups
+        
+        expect(clusteredPageIds[0].count) == 2
+        expect(clusteredPageIds[0][0]) == pageUUID
+        expect(clusteredPageIds[0][1]) == pageUUID
     }
 }
 

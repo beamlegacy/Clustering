@@ -114,7 +114,8 @@ class ModelInference {
 public class SmartClustering {
     var thresholdComparison = 0.3105
     var textualItems = [TextualItem]()
-    var clusters = [[UUID]]()
+    var pagesClusters = [[UUID]]()
+    var notesClusters = [[UUID]]()
     var similarities = [[Double]]()
     let lock = NSLock()
     @MainActor let modelInf = ModelInference()
@@ -224,25 +225,45 @@ public class SmartClustering {
         
         extractedClusters.sort(by: { $0.count > $1.count })
         
-        self.clusters = []
+        self.pagesClusters = []
+        self.notesClusters = []
         
         var extractedIds = Set<Int>()
         var total = 0
         
         for cluster in extractedClusters {
             var sortedCluster = cluster
-            var nonOverlappedCluster = [UUID]()
+            var nonOverlappedPagesCluster = [UUID]()
+            var nonOverlappedNotesCluster = [UUID]()
             
             sortedCluster.sort(by: { $0 < $1 })
             
             for idx in sortedCluster where !extractedIds.contains(idx) {
-                nonOverlappedCluster.append(self.textualItems[idx].uuid)
+                if self.textualItems[idx].type == TextualItemType.page {
+                    nonOverlappedPagesCluster.append(self.textualItems[idx].uuid)
+                } else {
+                    nonOverlappedNotesCluster.append(self.textualItems[idx].uuid)
+                }
+                        
                 extractedIds.update(with: idx)
             }
             
-            if nonOverlappedCluster.count >= 1 {
-                self.clusters.append(nonOverlappedCluster)
-                total += nonOverlappedCluster.count
+            if nonOverlappedPagesCluster.count >= 1 {
+                self.pagesClusters.append(nonOverlappedPagesCluster)
+                total += nonOverlappedPagesCluster.count
+            }
+            
+            if nonOverlappedPagesCluster.count >= 1 && nonOverlappedNotesCluster.count == 0 {
+                self.notesClusters.append([])
+            }
+            
+            if nonOverlappedNotesCluster.count >= 1 {
+                self.notesClusters.append(nonOverlappedNotesCluster)
+                total += nonOverlappedNotesCluster.count
+            }
+            
+            if nonOverlappedPagesCluster.count == 0 && nonOverlappedNotesCluster.count >= 1 {
+                self.pagesClusters.append([])
             }
         }
         
@@ -253,37 +274,53 @@ public class SmartClustering {
     ///
     /// - Parameters:
     ///   - of: The textual item UUID to find.
+    ///   - from: The tab UUID containing the textual item
     /// - Returns: The corresponding index.
-    private func findTextualItemIndex(of: UUID) -> [Int] {
-        var uuids = [Int]()
-        
-        for (idx, val) in self.textualItems.enumerated() {
-            if val.uuid == of {
-                uuids.append(idx)
+    private func findTextualItemIndex(of: UUID, from: UUID) -> Int {
+        for (idx, textualItem) in self.textualItems.enumerated() {
+            if textualItem.uuid == of && from == textualItem.tabId  {
+                return idx
             }
         }
 
-        return uuids
+        return -1
     }
     
     /// Find the cluster index of a given UUID textual item.
     ///
     /// - Parameters:
     ///   - of: The textual item UUID to find.
+    ///   - from: The tab UUID containing the textual item
     /// - Returns: - clusterIndex: First dimension index.
     ///            - indexInCluster: Second dimension index.
-    private func findTextualItemIndexInClusters(of: UUID) -> (clusterIndex: Int, indexInCluster: Int) {
-        for (clusterIdx, cluster) in self.clusters.enumerated() {
-            for (idx, uuid) in cluster.enumerated() {
+    private func findTextualItemIndexInClusters(of: UUID, from: UUID) -> (clusterIndex: Int, indexInCluster: Int) {
+        for (clusterIndex, cluster) in self.pagesClusters.enumerated() {
+            for (indexInCluster, uuid) in cluster.enumerated() {
                 if uuid == of {
-                    return (clusterIdx, idx)
+                    let idx = self.findTextualItemIndex(of: uuid, from: from)
+                    
+                    if idx != -1 {
+                        return (clusterIndex, indexInCluster)
+                    }
+                }
+            }
+        }
+        
+        for (clusterIndex, cluster) in self.notesClusters.enumerated() {
+            for (indexInCluster, uuid) in cluster.enumerated() {
+                if uuid == of {
+                    let idx = self.findTextualItemIndex(of: uuid, from: from)
+                    
+                    if idx != -1 {
+                        return (clusterIndex, indexInCluster)
+                    }
                 }
             }
         }
         
         return (-1, -1)
     }
-
+    /*
     /// Create the clusters of a given textual item type.
     ///
     /// - Parameters:
@@ -291,13 +328,13 @@ public class SmartClustering {
     /// - Returns: The clusters.
     private func createTextualItemGroups(itemType: TextualItemType) -> [[UUID]] {
         var textualItemGroups = [[UUID]]()
-        
+        print("CLUSTERS: ", self.clusters)
         for cluster in self.clusters {
             var uniqueCluster = [UUID]()
             
             for val in cluster {
-                let indices = self.findTextualItemIndex(of: val)
-                
+                let indices = self.findTextualItemIndex(of: val, from: nil)
+                print("INDICES: ", indices)
                 for index in indices {
                     let type = self.textualItems[index].type
                     
@@ -311,7 +348,7 @@ public class SmartClustering {
         }
         
         return textualItemGroups
-    }
+    }*/
     
     /// Remove the given textual item and recompute the clusters.
     ///
@@ -319,45 +356,50 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be removed.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    private func removeActualTextualItem(textualItemUUID: UUID) throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
-        print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description)
-        let indices = self.findTextualItemIndex(of: textualItemUUID)
+    private func removeActualTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) throws -> [UUID: [UUID: Double]] {
+        print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+        let index = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
+        let coordinates = self.findTextualItemIndexInClusters(of: textualItemUUID, from: textualItemTabId)
+        print("INDICES ", index)
+        print("COORDINATES ", coordinates)
         
-        if !indices.isEmpty {
-            for index in indices {
-                print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description)
-                self.textualItems.remove(at: index)
-                
-                let (clusterIdx, textualItemIdx) = self.findTextualItemIndexInClusters(of: textualItemUUID)
-                
-                if (clusterIdx != -1 && textualItemIdx != -1) {
-                    self.clusters[clusterIdx].remove(at: textualItemIdx)
-                }
-                
-                for i in 0...self.similarities.count - 1 {
-                    similarities[i].remove(at: index)
-                }
-
-                similarities.remove(at: index)
+        if index != -1 {
+            print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+            let type = self.textualItems[index].type
+            
+            self.textualItems.remove(at: index)
+            
+            if type == TextualItemType.page {
+                self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
+            } else {
+                self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
             }
+            
+            for i in 0...self.similarities.count - 1 {
+                similarities[i].remove(at: index)
+            }
+
+            similarities.remove(at: index)
+            
         } else {
-            print("FROM CLUSTERING - REMOVE - NOT FOUND: ", textualItemUUID.description)
+            print("FROM CLUSTERING - REMOVE - NOT FOUND: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
         }
         
         var similarities = [UUID: [UUID: Double]]()
-        var pageGroups = [[UUID]]()
-        var noteGroups = [[UUID]]()
+        //var pageGroups = [[UUID]]()
+        //var noteGroups = [[UUID]]()
         
         if self.textualItems.count > 0 {
             similarities = self.createSimilarities()
-            pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-            noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+            //pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+            //noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         }
         
         #if DEBUG
-        print("FROM CLUSTERING - REMOVE - REMAINING PAGES: ", textualItemUUID.description)
+        print("FROM CLUSTERING - REMOVE - REMAINING PAGES: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
+            print("FROM CLUSTERING - REMOVE - TABID: ", val.tabId)
             print("FROM CLUSTERING - REMOVE - URL: ", val.url)
             print("FROM CLUSTERING - REMOVE - Title: ", val.title)
             print("FROM CLUSTERING - REMOVE - Processed Title: ", val.processTitle())
@@ -367,7 +409,7 @@ public class SmartClustering {
         print("FROM CLUSTERING - REMOVE - Similarities: ", self.similarities)
         #endif
         
-        return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
+        return similarities
     }
 
     /// Remove the given textual item and recompute the clusters.
@@ -376,12 +418,12 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be removed.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    public func removeTextualItem(textualItemUUID: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
+    public func removeTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.lock.lock()
-        let result = try self.removeActualTextualItem(textualItemUUID: textualItemUUID)
+        let sim = try self.removeActualTextualItem(textualItemUUID: textualItemUUID, textualItemTabId: textualItemTabId)
         self.lock.unlock()
         
-        return (pageGroups: result.pageGroups, noteGroups: result.noteGroups, similarities: result.similarities)
+        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: sim)
     }
     
     /// Turns the similarities matrix to a dict of dict.
@@ -413,11 +455,11 @@ public class SmartClustering {
         self.lock.lock()
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
-        print("FROM CLUSTERING - ADD: ", textualItem.uuid.description)
+        print("FROM CLUSTERING - ADD: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
         
-        if !self.findTextualItemIndex(of: textualItem.uuid).isEmpty {
-            print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " already exists - delete first")
-            _ = try self.removeActualTextualItem(textualItemUUID: textualItem.uuid)
+        if self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId) != -1 {
+            print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
+            _ = try self.removeActualTextualItem(textualItemUUID: textualItem.uuid, textualItemTabId: textualItem.tabId)
         }
         
         var text = ""
@@ -437,13 +479,14 @@ public class SmartClustering {
         self.createClusters()
         
         let similarities = self.createSimilarities()
-        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        //let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+        //let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
         #if DEBUG
-        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description)
+        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
+            print("FROM CLUSTERING - REMOVE - TABID: ", val.tabId)
             print("FROM CLUSTERING - ADD - URL: ", val.url)
             print("FROM CLUSTERING - ADD - Title: ", val.title)
             print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
@@ -455,7 +498,7 @@ public class SmartClustering {
         
         self.lock.unlock()
                 
-        return (pageGroups: pageGroups, noteGroups: noteGroups, similarities: similarities)
+        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
             
     }
 
@@ -470,9 +513,9 @@ public class SmartClustering {
         
         self.createClusters()
         
-        let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
-        let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
+        //let pageGroups = self.createTextualItemGroups(itemType: TextualItemType.page)
+        //let noteGroups = self.createTextualItemGroups(itemType: TextualItemType.note)
         
-        return (pageGroups: pageGroups, noteGroups: noteGroups)
+        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters)
     }
 }
