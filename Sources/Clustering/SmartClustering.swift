@@ -327,33 +327,25 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be removed.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    private func removeActualTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) throws -> [UUID: [UUID: Double]] {
-        print("FROM CLUSTERING - REMOVE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-        let index = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
-        let coordinates = self.findTextualItemIndexInClusters(of: textualItemUUID, from: textualItemTabId)
+    private func removeActualTextualItem(textualItemIndex: Int, textualItemTabId: UUID) throws -> [UUID: [UUID: Double]] {
+        let coordinates = self.findTextualItemIndexInClusters(of: self.textualItems[textualItemIndex].uuid, from: textualItemTabId)
+        let uuidToRemove = self.textualItems[textualItemIndex].uuid
+        let type = self.textualItems[textualItemIndex].type
         
-        if index != -1 {
-            print("FROM CLUSTERING - REMOVE - FOUND: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-            let type = self.textualItems[index].type
-            
-            self.textualItems.remove(at: index)
-            
-            if type == TextualItemType.page {
-                self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
-            } else {
-                self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
-            }
-            
-            for i in 0...self.similarities.count - 1 {
-                similarities[i].remove(at: index)
-            }
-
-            similarities.remove(at: index)
-            
+        self.textualItems.remove(at: textualItemIndex)
+        
+        if type == TextualItemType.page {
+            self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
         } else {
-            print("FROM CLUSTERING - REMOVE - NOT FOUND: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+            self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
         }
         
+        for i in 0...self.similarities.count - 1 {
+            self.similarities[i].remove(at: textualItemIndex)
+        }
+
+        self.similarities.remove(at: textualItemIndex)
+            
         var similarities = [UUID: [UUID: Double]]()
         
         if self.textualItems.count > 0 {
@@ -361,7 +353,7 @@ public class SmartClustering {
         }
         
         #if DEBUG
-        print("FROM CLUSTERING - REMOVE - REMAINING PAGES: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+        print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING: ", uuidToRemove.description, " FROM Tab ID: ", textualItemTabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
             print("FROM CLUSTERING - REMOVE - TABID: ", val.tabId)
@@ -385,7 +377,17 @@ public class SmartClustering {
     ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Double]]) {
         self.lock.lock()
-        let sim = try self.removeActualTextualItem(textualItemUUID: textualItemUUID, textualItemTabId: textualItemTabId)
+        print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+        let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
+        var sim = [UUID: [UUID: Double]]()
+        
+        if idx != -1 {
+            sim = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
+        } else {
+            print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+            sim = createSimilarities()
+        }
+        
         self.lock.unlock()
         
         return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: sim)
@@ -420,18 +422,20 @@ public class SmartClustering {
         self.lock.lock()
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
-        print("FROM CLUSTERING - ADD: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
+        print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
         
-        if self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId) != -1 {
+        let idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
+        
+        if idx != -1 {
             print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
-            _ = try self.removeActualTextualItem(textualItemUUID: textualItem.uuid, textualItemTabId: textualItem.tabId)
+            _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
+            self.textualItems.insert(textualItem, at: idx)
+        } else {
+            self.textualItems.append(textualItem)
         }
         
-        var text = ""
-        self.textualItems.append(textualItem)
-        
-        text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        let text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+                
         if text.isEmpty || text == "</s></s>" {
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
         } else {
