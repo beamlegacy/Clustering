@@ -25,7 +25,7 @@ class MathsUtils {
     /// - Returns: The normalized vector of the given vector.
     static func normalize(vector: [Double]) -> [Double] {
         let normValue = cblas_dnrm2(Int32(vector.count), vector, 1)
-        
+        //fputs("Swift: " + String(normValue) + "\n", stderr)
         if normValue > 0 {
             var normalizedVector = [Double]()
             
@@ -59,7 +59,7 @@ class MathsUtils {
         let sqrtVector1NormDotProduct = pow(vector1NormDotProduct, 0.5)
         let sqrtVector2NormDotProduct = pow(vector2NormDotProduct, 0.5)
         let similarity = vector1NormVector2NormDotProduct / (sqrtVector1NormDotProduct * sqrtVector2NormDotProduct)
-        
+        //fputs("Swift: " + String(similarity.rounded(toPlaces: 4)) + "\n", stderr)
         return similarity.rounded(toPlaces: 4)
     }
 }

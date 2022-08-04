@@ -118,10 +118,13 @@ public class SmartClustering {
     var notesClusters = [[UUID]]()
     var similarities = [[Double]]()
     let lock = NSLock()
+    var clustering: UnsafeMutableRawPointer!
     @MainActor let modelInf = ModelInference()
     let websitesToUseOnlyTitle = ["youtube"]
 
-    public init() {}
+    public init() {
+        self.clustering = createClustering()
+    }
     
     public func prepare() {
         self.modelInf.prepare()
@@ -154,6 +157,8 @@ public class SmartClustering {
     private func topk(k: Int, vector: [Double]) -> (values: [Double], indices: [Int]) {
         var sortedVector = vector
         var indicesVector = Array(vector.indices)
+        
+        //fputs("Swift: indices vector: \(indicesVector.description)\n", stderr)
         
         sortedVector.sort(by: { $0 > $1 })
         indicesVector.sort(by: { vector[$0] > vector[$1] })
@@ -190,7 +195,7 @@ public class SmartClustering {
         self.cosineSimilarityMatrix()
         
         let topkValues = self.topkMatrix(k: 1).0
-        
+        //fputs("Swift: top k values: \(topkValues.description)\n", stderr)
         for i in 0...topkValues.count - 1 {
             if let lastElement = topkValues[i].last {
                 if lastElement == 0.0 {
@@ -200,7 +205,7 @@ public class SmartClustering {
                     let topkRes = self.topk(k: sortMaxSize, vector: self.similarities[i])
                     let topValLarge = topkRes.0
                     let topIdxLarge = topkRes.1
-                    
+
                     if let lastVal = topValLarge.last {
                         if lastVal < self.thresholdComparison {
                             for (idx, val) in zip(topIdxLarge, topValLarge) where val > self.thresholdComparison {
@@ -236,10 +241,12 @@ public class SmartClustering {
             var sortedCluster = cluster
             var nonOverlappedPagesCluster = [UUID]()
             var nonOverlappedNotesCluster = [UUID]()
+            var testOverlapped = [Int]()
             
             sortedCluster.sort(by: { $0 < $1 })
             
             for idx in sortedCluster where !extractedIds.contains(idx) {
+                testOverlapped.append(idx)
                 if self.textualItems[idx].type == TextualItemType.page {
                     nonOverlappedPagesCluster.append(self.textualItems[idx].uuid)
                 } else {
@@ -462,8 +469,43 @@ public class SmartClustering {
             
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
         }
-
+        
+        var result = ClusteringResult()
+        var ebds = [UnsafePointer<Double>?]()
+        var ret: Int32 = -1
+        var i = 0
+        
+        while i < self.textualItems.count {
+            var t = self.textualItems[i].embedding
+            ebds.append(&t)
+            i += 1
+        }
+        
+        ret = create_clusters(self.clustering, &ebds, 384, Int32(self.textualItems.count), &result)
+        
+        let indices = Array(UnsafeBufferPointer(start: result.indices, count: Int(result.indices_size)))
+        let clusters_split = Array(UnsafeBufferPointer(start: result.clusters_split, count: Int(result.clusters_split_size)))
+        var full_clusters = [[UUID]]()
+        var start = 0
+        
+        for split in clusters_split {
+            var cluster = [UUID]()
+            for idx in start...(start + Int(split)) - 1 {
+                cluster.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+            }
+            start += Int(split)
+            full_clusters.append(cluster)
+        }
+        
         self.createClusters()
+        
+        print(full_clusters)
+        print("====")
+        print(self.pagesClusters)
+        
+        for textualItem in textualItems {
+            fputs("\(textualItem.title) => \(textualItem.uuid)\n", stderr)
+        }
         
         let similarities = self.createSimilarities()
         

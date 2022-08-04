@@ -42,3 +42,21 @@ extern "C" void removeTokenizer(void* handle) {
     
     delete tokenizer;
 }
+
+extern "C" void* createClustering() {
+    Clustering* clustering = new Clustering();
+    
+    return (void*) clustering;
+}
+
+extern "C" int create_clusters(void* handle, const double** embeddings, const int hidden_size, const int nb_pages, struct ClusteringResult* result) {
+    Clustering* clustering = (Clustering*)handle;
+    
+    return clustering->create_clusters(embeddings, hidden_size, nb_pages, result);
+}
+
+extern "C" void removeClustering(void* handle) {
+    Clustering* clustering = (Clustering*)handle;
+    
+    delete clustering;
+}
