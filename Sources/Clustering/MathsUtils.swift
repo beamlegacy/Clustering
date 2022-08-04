@@ -50,7 +50,7 @@ class MathsUtils {
         let vector2Norm = normalize(vector: vector2)
         
         if vector1Norm == [Double](repeating: 0.0, count: vector1.count) || vector2Norm == [Double](repeating: 0.0, count: vector1.count) {
-            return 0.0.rounded(toPlaces: 4)
+            return 0.0//.rounded(toPlaces: 4)
         }
         
         let vector1NormVector2NormDotProduct = cblas_ddot(Int32(vector1Norm.count), vector1Norm, 1, vector2Norm, 1)
@@ -60,6 +60,6 @@ class MathsUtils {
         let sqrtVector2NormDotProduct = pow(vector2NormDotProduct, 0.5)
         let similarity = vector1NormVector2NormDotProduct / (sqrtVector1NormDotProduct * sqrtVector2NormDotProduct)
         //fputs("Swift: " + String(similarity.rounded(toPlaces: 4)) + "\n", stderr)
-        return similarity.rounded(toPlaces: 4)
+        return similarity//.rounded(toPlaces: 4)
     }
 }
