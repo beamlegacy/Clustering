@@ -140,7 +140,7 @@ double Clustering::cosine_similarity(const std::vector<double> &vector1, const s
     double vector1_norm_vector2_norm_dot_product = std::inner_product(vector1_norm.begin(), vector1_norm.end(), vector2_norm.begin(), 0.0);
     double similarity = vector1_norm_vector2_norm_dot_product / (this->norm(vector1_norm) * this->norm(vector2_norm));
     float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
-    std::cerr << "C++ PERF: " << std::setprecision(8) << ms / 1000000 << std::endl;
+    std::cerr << "C++ cosine_similarity: " << std::setprecision(8) << ms / 1000000 << std::endl;
     return similarity;
 }
 
