@@ -39,6 +39,7 @@ struct ClusteringResult {
     unsigned long indices_size;
     unsigned long* clusters_split;
     unsigned long clusters_split_size;
+    double* similarities;
     float performance;
 };
 
@@ -63,9 +64,6 @@ class Model {
 
 class Clustering {
     private:
-        //float threshold = 0.3105;
-        //std::vector<std::vector<float>> embeddings;
-        //std::vector<std::string> uuids;
         std::vector<std::vector<double>> similarities;
         double norm(const std::vector<double> &vector);
         std::vector<double> normalize(const std::vector<double> &vector);
@@ -76,9 +74,6 @@ class Clustering {
         std::tuple<std::vector<double>, std::vector<int>> topk(const int k, const std::vector<double> &array);
     public:
         Clustering();
-        //void addTextualItem(const char* uuid, const float* embedding, const int hidden_size);
-        const double** getSimilarities();
-        //void removeTextualItem(const char* uuid);
         int create_clusters(const double** embeddings, const int hidden_size, const int nb_pages, ClusteringResult* result);
 };
 

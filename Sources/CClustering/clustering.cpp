@@ -1,8 +1,7 @@
 //
-//  model_inference_wrapper.cpp
-//  sentencepiece-swift
+//  clustering.cpp
 //
-//  Created by Julien Plu on 09/05/2022.
+//  Created by Julien Plu on 07/07/2022.
 //
 
 #include "clustering.hpp"
@@ -129,6 +128,7 @@ std::vector<double> Clustering::normalize(const std::vector<double> &vector) {
 }
 
 double Clustering::cosine_similarity(const std::vector<double> &vector1, const std::vector<double> &vector2) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     std::vector<double> vector1_norm = this->normalize(vector1);
     std::vector<double> vector2_norm = this->normalize(vector2);
     std::vector<double> zeros(vector1.size(), 0);
@@ -139,12 +139,14 @@ double Clustering::cosine_similarity(const std::vector<double> &vector1, const s
     
     double vector1_norm_vector2_norm_dot_product = std::inner_product(vector1_norm.begin(), vector1_norm.end(), vector2_norm.begin(), 0.0);
     double similarity = vector1_norm_vector2_norm_dot_product / (this->norm(vector1_norm) * this->norm(vector2_norm));
-    
+    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    std::cerr << "C++ PERF: " << std::setprecision(8) << ms / 1000000 << std::endl;
     return similarity;
 }
 
 void Clustering::cosine_similarity_matrix(const std::vector<std::vector<double>> &embeddings) {
     this->similarities.clear();
+    
     for (int i = 0;i < embeddings.size();i++) {
         std::vector<double> current_cosine_similarities;
         
@@ -171,13 +173,6 @@ std::vector<int> Clustering::argsort(const std::vector<double> &array) {
 
 std::tuple<std::vector<double>, std::vector<int>> Clustering::topk(const int k, const std::vector<double> &array) {
     std::vector<int> indices_vector = this->argsort(array);
-    
-    /*std::cerr << "C++: indices vector: [";
-    for (auto val: indices_vector) {
-        std::cerr << std::setprecision(15) << val << ", ";
-    }
-    std::cerr << "]" << std::endl;*/
-    
     std::vector<double> sorted_vector(array);
     
     std::sort(sorted_vector.begin(), sorted_vector.end(), std::greater<int>());
@@ -207,7 +202,7 @@ int Clustering::create_clusters(const double** embeddings, const int hidden_size
         
         converted_embeddings.push_back(emdedding);
     }
-    
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     std::vector<int> null_clusters;
     std::vector<std::vector<int>> extracted_clusters;
     
@@ -254,14 +249,6 @@ int Clustering::create_clusters(const double** embeddings, const int hidden_size
     std::vector<unsigned long> clusters_size;
     std::set<int> extracted_ids;
 
-    for (auto val: extracted_clusters) {
-        std::cerr << "[";
-        for (auto val2: val) {
-            std::cerr << val2 << ", ";
-        }
-        std::cerr << "], ";
-    }
-    std::cerr << "]" << std::endl;
     for (int i = 0;i < extracted_clusters.size();i++) {
         std::vector<int> sorted_cluster(extracted_clusters[i]);
         std::vector<int> non_overlapped_cluster;
@@ -283,17 +270,27 @@ int Clustering::create_clusters(const double** embeddings, const int hidden_size
             clusters_size.push_back(non_overlapped_cluster.size());
         }
     }
-    
+    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
     assert(unique_clusters.size() == converted_embeddings.size());
+    
+    std::vector<double> single_d_similarities;
+    
+    for (auto sim : this->similarities) {
+        single_d_similarities.reserve(single_d_similarities.size() + distance(sim.begin(), sim.end()));
+        single_d_similarities.insert(single_d_similarities.end(), sim.begin(), sim.end());
+    }
     
     result->indices = new int[unique_clusters.size()];
     result->clusters_split = new unsigned long[clusters_size.size()];
+    result->similarities = new double[unique_clusters.size() * unique_clusters.size()];
     
     std::memcpy(result->indices, unique_clusters.data(), sizeof(int) * unique_clusters.size());
     std::memcpy(result->clusters_split, clusters_size.data(), sizeof(unsigned long) * clusters_size.size());
+    std::memcpy(result->similarities, single_d_similarities.data(), sizeof(double) * unique_clusters.size() * unique_clusters.size());
     
     result->indices_size = unique_clusters.size();
     result->clusters_split_size = clusters_size.size();
+    result->performance = ms / 1000000;
     
     return 0;
 }

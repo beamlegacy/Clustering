@@ -26,6 +26,7 @@ struct ClusteringResult {
     unsigned long indices_size;
     unsigned long* clusters_split;
     unsigned long clusters_split_size;
+    double* similarities;
     float performance;
 };
 
