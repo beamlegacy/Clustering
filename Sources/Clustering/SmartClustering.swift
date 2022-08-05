@@ -471,7 +471,7 @@ public class SmartClustering {
             text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
         }
         
-        if text.isEmpty || text == "</s></s>" {
+        if text == "</s></s>" {
             self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Double](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
         } else {
             var tokenizedText = try await self.modelInf.tokenizeText(text: text)
