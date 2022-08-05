@@ -7,7 +7,7 @@
 #include "../clustering.hpp"
 
 
-extern "C" void* createModel(const char* model_path, int32_t hidden_size) {
+extern "C" void* createModel(const char* model_path, uint16_t hidden_size) {
     Model* model = new Model(model_path, hidden_size);
     
     return (void*) model;
@@ -25,7 +25,7 @@ extern "C" void removeModel(void* handle) {
     delete model;
 }
 
-extern "C" void* createTokenizer(const char* tokenizer_path, int32_t max_seq_length) {
+extern "C" void* createTokenizer(const char* tokenizer_path, uint16_t max_seq_length) {
     Tokenizer* tokenizer = new Tokenizer(tokenizer_path, max_seq_length);
     
     return (void*) tokenizer;
@@ -49,10 +49,10 @@ extern "C" void* createClustering() {
     return (void*) clustering;
 }
 
-extern "C" int create_clusters(void* handle, const double** embeddings, const int hidden_size, const int nb_pages, struct ClusteringResult* result) {
+extern "C" int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const float threshold, struct ClusteringResult* result) {
     Clustering* clustering = (Clustering*)handle;
     
-    return clustering->create_clusters(embeddings, hidden_size, nb_pages, result);
+    return clustering->create_clusters(embeddings, hidden_size, nb_pages, threshold, result);
 }
 
 extern "C" void removeClustering(void* handle) {

@@ -7,7 +7,7 @@
 #include "clustering.hpp"
 
 
-Model::Model(const char* model_path, int32_t hidden_size) {
+Model::Model(const char* model_path, uint16_t hidden_size) {
     std::string str_model_path(model_path);
     this->env = std::make_unique<Ort::Env>(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "clustering");
     Ort::SessionOptions sessionOptions;
@@ -20,6 +20,7 @@ Model::Model(const char* model_path, int32_t hidden_size) {
 }
 
 int Model::predict(const TokenizerResult* tokenizer_result, ModelResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     std::vector<int32_t> input_ids_v(tokenizer_result->input_ids, tokenizer_result->input_ids + tokenizer_result->size);
     Ort::AllocatorWithDefaultOptions allocator;
     size_t num_input_nodes = this->session->GetInputCount();
@@ -45,21 +46,22 @@ int Model::predict(const TokenizerResult* tokenizer_result, ModelResult* result)
         output_node_names[i] = output_name;
     }
     
-    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     std::vector<Ort::Value> output_tensors = this->session->Run(Ort::RunOptions{}, input_node_names.data(), ort_inputs.data(), ort_inputs.size(), output_node_names.data(), output_node_names.size());
-    float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
     float* sentence_embedding = output_tensors.front().GetTensorMutableData<float>();
     result->weigths = new float[this->hidden_size];
     
     std::memcpy(result->weigths, sentence_embedding, sizeof(float) * this->hidden_size);
     
     result->size = this->hidden_size;
-    result->performance = ms;
+    
+    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    
+    result->performance = ms / 1000000;
     
     return 0;
 }
 
-Tokenizer::Tokenizer(const char* tokenizer_path, int32_t max_seq_length) {
+Tokenizer::Tokenizer(const char* tokenizer_path, uint16_t max_seq_length) {
     std::string str_tokenizer_model_path(tokenizer_path);
 
     const auto status = this->tokenizer.Load(str_tokenizer_model_path);
@@ -72,15 +74,16 @@ Tokenizer::Tokenizer(const char* tokenizer_path, int32_t max_seq_length) {
 }
 
 int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    
     if (!this->tokenizer.status().ok()) {
         return 1;
     }
     
     std::vector<int32_t> input_ids_v;
     std::string content(text);
-    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    
     this->tokenizer.Encode(content, &input_ids_v);
-    float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
     
     std::transform(input_ids_v.begin(), input_ids_v.end(), input_ids_v.begin(), [](int id){return id+1;});
     
@@ -93,29 +96,32 @@ int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
     
     std::rotate(input_ids_v.rbegin(), input_ids_v.rbegin() + 1, input_ids_v.rend());
     
-    result->input_ids = new int32_t[input_ids_v.size()];
+    result->input_ids = new uint32_t[input_ids_v.size()];
     
-    std::memcpy(result->input_ids, input_ids_v.data(), sizeof(int32_t) * input_ids_v.size());
+    std::memcpy(result->input_ids, input_ids_v.data(), sizeof(uint32_t) * input_ids_v.size());
     
     result->size = input_ids_v.size();
-    result->performance = ms;
+    
+    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    
+    result->performance = ms / 1000000;
     
     return 0;
 }
 
 Clustering::Clustering() {}
 
-double Clustering::norm(const std::vector<double> &vector) {
-    double sum = std::inner_product(vector.begin(), vector.end(), vector.begin(), 0.0);
+float Clustering::norm(const std::vector<float> &vector) {
+    float sum = std::inner_product(vector.begin(), vector.end(), vector.begin(), 0.0);
     
     return std::sqrt(sum);
 }
 
-std::vector<double> Clustering::normalize(const std::vector<double> &vector) {
+std::vector<float> Clustering::normalize(const std::vector<float> &vector) {
     double norm_value = this->norm(vector);
     
     if (norm_value > 0) {
-        std::vector<double> normalized_vector;
+        std::vector<float> normalized_vector;
         
         for (int i = 0; i < vector.size(); i++) {
             normalized_vector.push_back(vector[i] / norm_value);
@@ -127,11 +133,10 @@ std::vector<double> Clustering::normalize(const std::vector<double> &vector) {
     return vector;
 }
 
-double Clustering::cosine_similarity(const std::vector<double> &vector1, const std::vector<double> &vector2) {
-    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-    std::vector<double> vector1_norm = this->normalize(vector1);
-    std::vector<double> vector2_norm = this->normalize(vector2);
-    std::vector<double> zeros(vector1.size(), 0);
+float Clustering::cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2) {
+    std::vector<float> vector1_norm = this->normalize(vector1);
+    std::vector<float> vector2_norm = this->normalize(vector2);
+    std::vector<float> zeros(vector1.size(), 0);
     
     if (vector1_norm == zeros || vector2_norm == zeros) {
         return 0.0;
@@ -139,16 +144,15 @@ double Clustering::cosine_similarity(const std::vector<double> &vector1, const s
     
     double vector1_norm_vector2_norm_dot_product = std::inner_product(vector1_norm.begin(), vector1_norm.end(), vector2_norm.begin(), 0.0);
     double similarity = vector1_norm_vector2_norm_dot_product / (this->norm(vector1_norm) * this->norm(vector2_norm));
-    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
-    std::cerr << "C++ cosine_similarity: " << std::setprecision(8) << ms / 1000000 << std::endl;
+    
     return similarity;
 }
 
-void Clustering::cosine_similarity_matrix(const std::vector<std::vector<double>> &embeddings) {
+void Clustering::cosine_similarity_matrix(const std::vector<std::vector<float>> &embeddings) {
     this->similarities.clear();
     
     for (int i = 0;i < embeddings.size();i++) {
-        std::vector<double> current_cosine_similarities;
+        std::vector<float> current_cosine_similarities;
         
         for (int j = 0;j < embeddings.size();j++) {
             current_cosine_similarities.push_back(this->cosine_similarity(embeddings[i], embeddings[j]));
@@ -158,84 +162,83 @@ void Clustering::cosine_similarity_matrix(const std::vector<std::vector<double>>
     }
 }
 
-std::vector<int> Clustering::argsort(const std::vector<double> &array) {
-    std::vector<int> indices(array.size());
+std::vector<int> Clustering::argsort(const std::vector<float> &array) {
+    std::vector<int> indices_vector(array.size());
     
-    std::iota(indices.begin(), indices.end(), 0);
-    std::sort(indices.begin(), indices.end(),
+    std::iota(indices_vector.begin(), indices_vector.end(), 0);
+    std::sort(indices_vector.begin(), indices_vector.end(),
               [&array](int left, int right) -> bool {
-                  // sort indices according to corresponding array element
                   return array[left] > array[right];
               });
-
-    return indices;
+    
+    return indices_vector;
 }
 
-std::tuple<std::vector<double>, std::vector<int>> Clustering::topk(const int k, const std::vector<double> &array) {
+std::tuple<std::vector<float>, std::vector<int>> Clustering::topk(const uint16_t k, const std::vector<float> &array) {
     std::vector<int> indices_vector = this->argsort(array);
-    std::vector<double> sorted_vector(array);
+    std::vector<float> sorted_vector(array);
     
-    std::sort(sorted_vector.begin(), sorted_vector.end(), std::greater<int>());
+    std::sort(sorted_vector.begin(), sorted_vector.end(), std::greater<double>());
     
-    return std::tuple<std::vector<double>, std::vector<int>>({sorted_vector.begin(), sorted_vector.begin() + k}, {indices_vector.begin(), indices_vector.begin() + k});
+    return std::tuple<std::vector<float>, std::vector<int>>({sorted_vector.begin(), sorted_vector.begin() + k}, {indices_vector.begin(), indices_vector.begin() + k});
 }
 
-std::tuple<std::vector<std::vector<double>>, std::vector<std::vector<int>>> Clustering::topk_matrix(const int k) {
-    std::vector<std::vector<double>> values;
+std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>> Clustering::topk_matrix(const uint16_t k) {
+    std::vector<std::vector<float>> values;
     std::vector<std::vector<int>> indices;
     
     for (int i = 0;i < this->similarities.size();i++) {
-        std::tuple<std::vector<double>, std::vector<int>> tmp_values_indices = this->topk(k, this->similarities[i]);
+        std::tuple<std::vector<float>, std::vector<int>> tmp_values_indices = this->topk(k, this->similarities[i]);
         
         values.push_back(std::get<0>(tmp_values_indices));
         indices.push_back(std::get<1>(tmp_values_indices));
     }
     
-    return std::tuple<std::vector<std::vector<double>>, std::vector<std::vector<int>>>(values, indices);
+    return std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>>(values, indices);
 }
 
-int Clustering::create_clusters(const double** embeddings, const int hidden_size, const int nb_pages, ClusteringResult* result) {
-    std::vector<std::vector<double>> converted_embeddings;
+int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const double threshold, ClusteringResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> converted_embeddings;
     
     for (int i = 0;i < nb_pages;i++) {
-        std::vector<double> emdedding (embeddings[i], embeddings[i] + hidden_size);
+        std::vector<float> emdedding (embeddings[i], embeddings[i] + hidden_size);
         
         converted_embeddings.push_back(emdedding);
     }
-    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    
     std::vector<int> null_clusters;
     std::vector<std::vector<int>> extracted_clusters;
     
     this->cosine_similarity_matrix(converted_embeddings);
     
-    std::vector<std::vector<double>> topk_values = std::get<0>(this->topk_matrix(1));
+    std::vector<std::vector<float>> topk_values = std::get<0>(this->topk_matrix(1));
     
     for (int i = 0;i < topk_values.size();i++) {
         if (topk_values[i].back() == 0.0) {
             null_clusters.push_back(i);
-        } else if (topk_values[i].back() >= 0.3105) {
-            std::vector<int> new_clusters;
-            std::tuple<std::vector<double>, std::vector<int>> topk_res = this->topk(converted_embeddings.size(), this->similarities[i]);
-            std::vector<double> top_val_large = std::get<0>(topk_res);
+        } else if (topk_values[i].back() >= threshold) {
+            std::vector<int> new_cluster;
+            std::tuple<std::vector<float>, std::vector<int>> topk_res = this->topk(converted_embeddings.size(), this->similarities[i]);
+            std::vector<float> top_val_large = std::get<0>(topk_res);
             std::vector<int> top_idx_large = std::get<1>(topk_res);
             
-            if (top_val_large.back() < 0.3105) {
+            if (top_val_large.back() < threshold) {
                 for (int j = 0;j < top_idx_large.size();j++) {
-                    if (top_val_large[j] < 0.3105) {
+                    if (top_val_large[j] <= threshold) {
                         break;
                     }
                     
-                    new_clusters.push_back(top_idx_large[j]);
+                    new_cluster.push_back(top_idx_large[j]);
                 }
             } else {
                 for (int j = 0;j < this->similarities[i].size();j++) {
-                    if (this->similarities[i][j] >= 0.3105) {
-                        new_clusters.push_back(j);
+                    if (this->similarities[i][j] >= threshold) {
+                        new_cluster.push_back(j);
                     }
                 }
             }
-            
-            extracted_clusters.push_back(new_clusters);
+            extracted_clusters.push_back(new_cluster);
         }
     }
     
@@ -244,19 +247,18 @@ int Clustering::create_clusters(const double** embeddings, const int hidden_size
     }
     
     std::sort(extracted_clusters.begin(), extracted_clusters.end(), [](const std::vector<int> &a, const std::vector<int> &b){ return a.size() > b.size(); });
-    
-    std::vector<int> unique_clusters;
-    std::vector<unsigned long> clusters_size;
-    std::set<int> extracted_ids;
+    std::vector<uint16_t> unique_clusters;
+    std::vector<uint16_t> clusters_size;
+    std::set<uint16_t> extracted_ids;
 
     for (int i = 0;i < extracted_clusters.size();i++) {
         std::vector<int> sorted_cluster(extracted_clusters[i]);
-        std::vector<int> non_overlapped_cluster;
+        std::vector<uint16_t> non_overlapped_cluster;
         
         std::sort(sorted_cluster.begin(), sorted_cluster.end());
         
         for (int j = 0;j < sorted_cluster.size();j++) {
-            std::set<int>::iterator it = extracted_ids.find(sorted_cluster[j]);
+            std::set<uint16_t>::iterator it = extracted_ids.find(sorted_cluster[j]);
             
             if (it == extracted_ids.end()) {
                 non_overlapped_cluster.push_back(sorted_cluster[j]);
@@ -270,26 +272,29 @@ int Clustering::create_clusters(const double** embeddings, const int hidden_size
             clusters_size.push_back(non_overlapped_cluster.size());
         }
     }
-    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    
     assert(unique_clusters.size() == converted_embeddings.size());
     
-    std::vector<double> single_d_similarities;
+    std::vector<float> single_d_similarities;
     
     for (auto sim : this->similarities) {
         single_d_similarities.reserve(single_d_similarities.size() + distance(sim.begin(), sim.end()));
         single_d_similarities.insert(single_d_similarities.end(), sim.begin(), sim.end());
     }
     
-    result->indices = new int[unique_clusters.size()];
-    result->clusters_split = new unsigned long[clusters_size.size()];
-    result->similarities = new double[unique_clusters.size() * unique_clusters.size()];
+    result->indices = new uint16_t[unique_clusters.size()];
+    result->clusters_split = new uint16_t[clusters_size.size()];
+    result->similarities = new float[unique_clusters.size() * unique_clusters.size()];
     
-    std::memcpy(result->indices, unique_clusters.data(), sizeof(int) * unique_clusters.size());
-    std::memcpy(result->clusters_split, clusters_size.data(), sizeof(unsigned long) * clusters_size.size());
-    std::memcpy(result->similarities, single_d_similarities.data(), sizeof(double) * unique_clusters.size() * unique_clusters.size());
+    std::memcpy(result->indices, unique_clusters.data(), sizeof(uint16_t) * unique_clusters.size());
+    std::memcpy(result->clusters_split, clusters_size.data(), sizeof(uint16_t) * clusters_size.size());
+    std::memcpy(result->similarities, single_d_similarities.data(), sizeof(float) * unique_clusters.size() * unique_clusters.size());
     
     result->indices_size = unique_clusters.size();
     result->clusters_split_size = clusters_size.size();
+    
+    float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
+    
     result->performance = ms / 1000000;
     
     return 0;

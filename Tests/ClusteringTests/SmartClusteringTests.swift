@@ -67,20 +67,20 @@ class SmartClusteringTests: XCTestCase {
         expect(cluster.textualItems.count).to(equal(8))
     }
     
-    func testGoogleSearchClustering() async throws {
+    func testGoogleSearchClusteringWithChangingThreshold() async throws {
         let cluster = SmartClustering()
         
         cluster.prepare()
         
         let textualItems = [
-            TextualItem(id: UUID(uuidString: "45EC01A0-E942-4C31-AFFB-7B69959F078A")!, tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "8F9F9FDA-9397-4601-A576-B1E90C089A0E")!, tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "82F81E03-C0BF-4B75-89A9-E683F2B18F21")!, tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "55D3D2CF-ABE8-4E07-B411-70E951292E43")!, tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "B354E048-FDA9-42F1-997A-9C7BE5BF7C9B")!, tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F")!, tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "B26A31C8-B700-4BF8-A084-47BD17CF5AD4")!, tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "85E79181-6F55-4D84-A3EE-DD936EAFFCF4")!, tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+            TextualItem(id: uuids[0], tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[4], tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[5], tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[6], tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[7], tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -88,11 +88,9 @@ class SmartClusteringTests: XCTestCase {
             clusteredPageIds = try await cluster.add(textualItem: texualItem).pageGroups
         }
 
-        expect(clusteredPageIds.description).to(equal("[[45EC01A0-E942-4C31-AFFB-7B69959F078A, 82F81E03-C0BF-4B75-89A9-E683F2B18F21, 55D3D2CF-ABE8-4E07-B411-70E951292E43, B354E048-FDA9-42F1-997A-9C7BE5BF7C9B, B26A31C8-B700-4BF8-A084-47BD17CF5AD4, 85E79181-6F55-4D84-A3EE-DD936EAFFCF4], [8F9F9FDA-9397-4601-A576-B1E90C089A0E], [C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F]]"))
-        
-        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.3689).pageGroups
+        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.3690).pageGroups
 
-        expect(clusteredPageIds.description).to(equal("[[45EC01A0-E942-4C31-AFFB-7B69959F078A, 8F9F9FDA-9397-4601-A576-B1E90C089A0E, B26A31C8-B700-4BF8-A084-47BD17CF5AD4, 85E79181-6F55-4D84-A3EE-DD936EAFFCF4], [82F81E03-C0BF-4B75-89A9-E683F2B18F21, 55D3D2CF-ABE8-4E07-B411-70E951292E43, B354E048-FDA9-42F1-997A-9C7BE5BF7C9B, C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F]]"))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1], uuids[6], uuids[7]], [uuids[2], uuids[3], uuids[4], uuids[5]]])))
     }
 
     func testMultilingualPages() async throws {
@@ -120,20 +118,14 @@ class SmartClusteringTests: XCTestCase {
         let cluster = SmartClustering()
         
         cluster.prepare()
-        
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...5 {
-            UUIDs.append(UUID())
-        }
-        
+                
         let textualItems = [
-            TextualItem(id: UUID(uuidString: "45EC01A0-E942-4C31-AFFB-7B69959F078A")!, tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "8F9F9FDA-9397-4601-A576-B1E90C089A0E")!, tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "82F81E03-C0BF-4B75-89A9-E683F2B18F21")!, tabId: UUID(), url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "55D3D2CF-ABE8-4E07-B411-70E951292E43")!, tabId: UUID(), url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "B354E048-FDA9-42F1-997A-9C7BE5BF7C9B")!, tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F")!, tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
+            TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts", type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
+            TextualItem(id: uuids[4], tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[5], tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -141,7 +133,7 @@ class SmartClusteringTests: XCTestCase {
             clusteredPageIds = try await cluster.add(textualItem: textualItem).pageGroups
         }
         
-        expect(clusteredPageIds.description).to(equal("[[82F81E03-C0BF-4B75-89A9-E683F2B18F21, 55D3D2CF-ABE8-4E07-B411-70E951292E43, C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F], [45EC01A0-E942-4C31-AFFB-7B69959F078A, 8F9F9FDA-9397-4601-A576-B1E90C089A0E, B354E048-FDA9-42F1-997A-9C7BE5BF7C9B]]"))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[2], uuids[3], uuids[5]], [uuids[0], uuids[1], uuids[4]]])))
     }
     
     func testFullemptyPages() async throws {
@@ -174,11 +166,11 @@ class SmartClusteringTests: XCTestCase {
         cluster.prepare()
         
         let textualItems = [
-            TextualItem(id: UUID(uuidString: "45EC01A0-E942-4C31-AFFB-7B69959F078A")!, tabId: UUID(), url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "8F9F9FDA-9397-4601-A576-B1E90C089A0E")!, tabId: UUID(), url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "82F81E03-C0BF-4B75-89A9-E683F2B18F21")!, tabId: UUID(), url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page),
-            TextualItem(id: UUID(uuidString: "55D3D2CF-ABE8-4E07-B411-70E951292E43")!, tabId: UUID(), title: SamplePageContent.frFedererWiki.title, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
-            TextualItem(id: UUID(uuidString: "B354E048-FDA9-42F1-997A-9C7BE5BF7C9B")!, tabId: UUID(), title: SamplePageContent.frNadalWiki.title, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
+            TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.enFedererWiki.url, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.enNadalWiki.url, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.youtube.com", originalContent: ["All"], type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), title: SamplePageContent.frFedererWiki.title, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
+            TextualItem(id: uuids[4], tabId: UUID(), title: SamplePageContent.frNadalWiki.title, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
         ]
         var clusteredPageIds: [[UUID]] = []
         var clusteredNoteIds: [[UUID]] = []
@@ -187,8 +179,8 @@ class SmartClusteringTests: XCTestCase {
             (clusteredPageIds, clusteredNoteIds, _) = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(clusteredPageIds.description).to(equal("[[45EC01A0-E942-4C31-AFFB-7B69959F078A, 8F9F9FDA-9397-4601-A576-B1E90C089A0E], [82F81E03-C0BF-4B75-89A9-E683F2B18F21]]"))
-        expect(clusteredNoteIds.description).to(equal("[[55D3D2CF-ABE8-4E07-B411-70E951292E43, B354E048-FDA9-42F1-997A-9C7BE5BF7C9B], []]"))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1]], [uuids[2]]])))
+        expect(Set(clusteredNoteIds)).to(equal(Set([[uuids[3], uuids[4]], []])))
     }
     
     func testRemoveTextualItem() async throws {
@@ -268,6 +260,17 @@ class SmartClusteringTests: XCTestCase {
         expect(clusteredPageIds[0][1]) == pageUUID
     }
 }
+
+let uuids = [
+    UUID(uuidString: "45EC01A0-E942-4C31-AFFB-7B69959F078A")!,
+    UUID(uuidString: "8F9F9FDA-9397-4601-A576-B1E90C089A0E")!,
+    UUID(uuidString: "82F81E03-C0BF-4B75-89A9-E683F2B18F21")!,
+    UUID(uuidString: "55D3D2CF-ABE8-4E07-B411-70E951292E43")!,
+    UUID(uuidString: "B354E048-FDA9-42F1-997A-9C7BE5BF7C9B")!,
+    UUID(uuidString: "C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F")!,
+    UUID(uuidString: "B26A31C8-B700-4BF8-A084-47BD17CF5AD4")!,
+    UUID(uuidString: "85E79181-6F55-4D84-A3EE-DD936EAFFCF4")!,
+]
 
 private struct SamplePageContent {
     var url: String
