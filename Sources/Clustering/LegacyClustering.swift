@@ -952,16 +952,17 @@ public class LegacyClustering {
     ///   - activeSources: array of all active sources
     /// - Returns: A dictionary of all notes and active sources (keys), the value for each is a dictionary of all pages
     ///             in the same group (keys) and the corresponding similarity (value)
-    func createSimilarities(pageGroups: [[UUID]], noteGroups: [[UUID]], activeSources: [UUID]?) -> [UUID: [UUID: Double]] {
-        var similarities = [UUID: [UUID: Double]]()
+    func createSimilarities(pageGroups: [[UUID]], noteGroups: [[UUID]], activeSources: [UUID]?) -> [UUID: [UUID: Float]] {
+        var similarities = [UUID: [UUID: Float]]()
         // Start by including similarities with notes
         for (pageGroup, noteGroup) in zip(pageGroups, noteGroups) {
             for noteId in noteGroup {
                 if let noteIndex = self.findNoteInNotes(noteID: noteId) {
-                    similarities[noteId] = [UUID: Double]()
+                    similarities[noteId] = [UUID: Float]()
                     for pageId in pageGroup {
                         if let pageIndex = self.findPageInPages(pageID: pageId) {
-                            similarities[noteId]?[pageId] = self.entitiesMatrix.matrix[noteIndex, pageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[noteIndex, pageIndex + self.notes.count], 4.0)
+                            let sim = self.entitiesMatrix.matrix[noteIndex, pageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[noteIndex, pageIndex + self.notes.count], 4.0)
+                            similarities[noteId]?[pageId] = Float(exactly: sim)!
                         }
                     }
                 }
@@ -970,10 +971,11 @@ public class LegacyClustering {
                 for pageId in pageGroup {
                     if activeSources.contains(pageId),
                        let pageIndex = self.findPageInPages(pageID: pageId) {
-                        similarities[pageId] = [UUID:Double]()
+                        similarities[pageId] = [UUID:Float]()
                         for suggestedPageId in pageGroup.filter({ $0 != pageId }) {
                             if let suggestedPageIndex = self.findPageInPages(pageID: suggestedPageId) {
-                                similarities[pageId]?[suggestedPageId] = self.entitiesMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count], 4.0)
+                                let sim = self.entitiesMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count], 4.0)
+                                similarities[pageId]?[suggestedPageId] = Float(exactly: sim)!
                             }
                         }
                     }
@@ -1147,7 +1149,7 @@ public class LegacyClustering {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next cyclomatic_complexity function_body_length large_tuple
-    public func add(textualItem: TextualItem, ranking: [UUID]?, activeSources: [UUID]? = nil, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
+    public func add(textualItem: TextualItem, ranking: [UUID]?, activeSources: [UUID]? = nil, replaceContent: Bool = false, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Float]]), Error>) -> Void) {
         self.additionsInQueue += 1
         additionQueue.async {
             var page: Page? = nil
@@ -1342,7 +1344,7 @@ public class LegacyClustering {
     ///             - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages
     ///             - sendRanking: A flag to ask the clusteringManager to send page ranking with the next 'add' request, for the purpose of removing some pages
     // swiftlint:disable:next large_tuple
-    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, activeSources: [UUID]? = nil, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Double]]), Error>) -> Void) {
+    public func changeCandidate(to candidate: Int?, with weightNavigation: Double?, with weightText: Double?, with weightEntities: Double?, activeSources: [UUID]? = nil, completion: @escaping (Result<(pageGroups: [[UUID]], noteGroups: [[UUID]], flag: Flag, similarities: [UUID: [UUID: Float]]), Error>) -> Void) {
         self.additionsInQueue += 1
         self.additionQueue.async {
             // If ranking is received, remove pages

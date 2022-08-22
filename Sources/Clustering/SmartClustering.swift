@@ -289,7 +289,7 @@ public class SmartClustering {
         
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
-        
+        let start_time = DispatchTime.now()
         #if DEBUG
         print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
         #endif
@@ -403,7 +403,9 @@ public class SmartClustering {
         }
         print("FROM CLUSTERING - ADD - Similarities: ", self.similarities)
         #endif
-        
+        let end = DispatchTime.now()
+        let nanoTime = end.uptimeNanoseconds - start_time.uptimeNanoseconds
+        print("Time elapsed: \(Float(nanoTime / 1000000)) ms.")
         self.lock.unlock()
                 
         return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
@@ -416,7 +418,7 @@ public class SmartClustering {
     ///   - threshold: The new comparison threshold.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    public func changeCandidate(threshold: Float) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+    public func changeCandidate(threshold: Float) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
         self.thresholdComparison = threshold
         
         var result = ClusteringResult()
@@ -470,6 +472,8 @@ public class SmartClustering {
             start += self.textualItems.count
         }
         
-        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters)
+        let similarities = self.createSimilarities()
+        
+        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
     }
 }
