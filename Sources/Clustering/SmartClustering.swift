@@ -251,7 +251,9 @@ public class SmartClustering {
             print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
             #endif
             
-            sim = createSimilarities()
+            if self.textualItems.count > 0 {
+                sim = createSimilarities()
+            }
         }
         
         self.lock.unlock()
