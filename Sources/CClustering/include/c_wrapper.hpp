@@ -21,11 +21,15 @@ struct TokenizerResult {
     float performance;
 };
 
-struct ClusteringResult {
+struct ClusterDefinition {
     uint16_t* indices;
     uint16_t indices_size;
     uint16_t* clusters_split;
     uint16_t clusters_split_size;
+};
+
+struct ClusteringResult {
+    struct ClusterDefinition* cluster;
     float* similarities;
     float performance;
 };
@@ -40,7 +44,9 @@ int tokenize(void* handle, const char* text, struct TokenizerResult* result);
 void removeTokenizer(void* handle);
 
 void* createClustering();
-int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const float threshold, struct ClusteringResult* result);
+int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, struct ClusteringResult* result);
+int recompute_clustering_threshold(void* handle, const struct ClusterDefinition* expected_clusters, struct ClusteringResult* result);
+float get_threshold(void* handle);
 void removeClustering(void* handle);
 
 #endif /* c_wrapper_hpp */

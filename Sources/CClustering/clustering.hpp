@@ -31,11 +31,15 @@ struct TokenizerResult {
     float performance;
 };
 
-struct ClusteringResult {
+struct ClusterDefinition {
     uint16_t* indices;
     uint16_t indices_size;
     uint16_t* clusters_split;
     uint16_t clusters_split_size;
+};
+
+struct ClusteringResult {
+    ClusterDefinition* cluster;
     float* similarities;
     float performance;
 };
@@ -62,6 +66,10 @@ class Model {
 class Clustering {
     private:
         std::vector<std::vector<float>> similarities;
+        float threshold = 0.3105;
+        
+        std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> compute_clusters(const uint16_t nb_pages);
+        void format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> expected_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start);
         float norm(const std::vector<float> &vector);
         std::vector<float> normalize(const std::vector<float> &vector);
         float cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2);
@@ -71,7 +79,9 @@ class Clustering {
         std::tuple<std::vector<float>, std::vector<int>> topk(const uint16_t k, const std::vector<float> &array);
     public:
         Clustering();
-        int create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const double threshold, ClusteringResult* result);
+        float get_threshold();
+        int create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, ClusteringResult* result);
+        int recompute_clustering_threshold(const ClusterDefinition* clusters, ClusteringResult* result);
 };
 
 template<typename T1>

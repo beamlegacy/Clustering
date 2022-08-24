@@ -49,10 +49,22 @@ extern "C" void* createClustering() {
     return (void*) clustering;
 }
 
-extern "C" int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const float threshold, struct ClusteringResult* result) {
+extern "C" int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, struct ClusteringResult* result) {
     Clustering* clustering = (Clustering*)handle;
     
-    return clustering->create_clusters(embeddings, hidden_size, nb_pages, threshold, result);
+    return clustering->create_clusters(embeddings, hidden_size, nb_pages, result);
+}
+
+extern "C" int recompute_clustering_threshold(void* handle, const struct ClusterDefinition* expected_clusters, struct ClusteringResult* result) {
+    Clustering* clustering = (Clustering*)handle;
+    
+    return clustering->recompute_clustering_threshold(expected_clusters, result);
+}
+
+extern "C" float get_threshold(void* handle) {
+    Clustering* clustering = (Clustering*)handle;
+    
+    return clustering->get_threshold();
 }
 
 extern "C" void removeClustering(void* handle) {

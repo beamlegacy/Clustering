@@ -1,6 +1,7 @@
 import Nimble
 import XCTest
 @testable import Clustering
+@testable import CClustering
 
 
 class SmartClusteringTests: XCTestCase {
@@ -87,9 +88,23 @@ class SmartClusteringTests: XCTestCase {
         for texualItem in textualItems {
             clusteredPageIds = try await cluster.add(textualItem: texualItem).pageGroups
         }
+        
+        var expectedClusters = ClusterDefinition()
+        let indices: [UInt16] = [0, 1, 6, 7, 2, 3, 4, 5]
+        let clusters_split: [UInt16] = [4, 4]
+        let pointer_indices = UnsafeMutablePointer<UInt16>.allocate(capacity: indices.count)
+        let pointer_clusters_split = UnsafeMutablePointer<UInt16>.allocate(capacity: clusters_split.count)
+        
+        pointer_indices.initialize(from: indices, count: indices.count)
+        pointer_clusters_split.initialize(from: clusters_split, count: clusters_split.count)
+        
+        expectedClusters.indices = pointer_indices
+        expectedClusters.indices_size = 8
+        expectedClusters.clusters_split = pointer_clusters_split
+        expectedClusters.clusters_split_size = 2
 
-        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.3690).pageGroups
-
+        clusteredPageIds = try await cluster.changeCandidate(expectedClusters: &expectedClusters).pageGroups
+        
         expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1], uuids[6], uuids[7]], [uuids[2], uuids[3], uuids[4], uuids[5]]])))
     }
 

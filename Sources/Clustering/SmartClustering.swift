@@ -111,7 +111,6 @@ class ModelInference {
 
 
 public class SmartClustering {
-    var thresholdComparison: Float = 0.3105
     var textualItems = [TextualItem]()
     var pagesClusters = [[UUID]]()
     var notesClusters = [[UUID]]()
@@ -186,7 +185,7 @@ public class SmartClustering {
     ///   - textualItem: The textual item to be removed.
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    private func removeActualTextualItem(textualItemIndex: Int, textualItemTabId: UUID) throws -> [UUID: [UUID: Float]] {
+    private func removeActualTextualItem(textualItemIndex: Int, textualItemTabId: UUID) throws {
         let coordinates = self.findTextualItemIndexInClusters(of: self.textualItems[textualItemIndex].uuid, from: textualItemTabId)
         let uuidToRemove = self.textualItems[textualItemIndex].uuid
         let type = self.textualItems[textualItemIndex].type
@@ -204,12 +203,6 @@ public class SmartClustering {
         }
 
         self.similarities.remove(at: textualItemIndex)
-            
-        var similarities = [UUID: [UUID: Float]]()
-        
-        if self.textualItems.count > 0 {
-            similarities = self.createSimilarities()
-        }
         
         #if DEBUG
         print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING: ", uuidToRemove.description, " FROM Tab ID: ", textualItemTabId.description)
@@ -224,8 +217,6 @@ public class SmartClustering {
         }
         print("FROM CLUSTERING - REMOVE - Similarities: ", self.similarities)
         #endif
-        
-        return similarities
     }
 
     /// Remove the given textual item and recompute the clusters.
@@ -242,23 +233,24 @@ public class SmartClustering {
         #endif
         
         let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
-        var sim = [UUID: [UUID: Float]]()
         
         if idx != -1 {
-            sim = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
+            try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
         } else {
             #if DEBUG
             print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
             #endif
-            
-            if self.textualItems.count > 0 {
-                sim = createSimilarities()
-            }
+        }
+        
+        var similarities = [UUID: [UUID: Float]]()
+        
+        if self.textualItems.count > 0 {
+            similarities = self.createSimilarities()
         }
         
         self.lock.unlock()
         
-        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: sim)
+        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
     }
     
     /// Turns the similarities matrix to a dict of dict.
@@ -349,14 +341,14 @@ public class SmartClustering {
             i += 1
         }
         
-        ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), self.thresholdComparison, &result)
+        ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), &result)
         
         if ret > 0 {
             throw CClusteringError.clusteringError
         }
         
-        let indices = Array(UnsafeBufferPointer(start: result.indices, count: Int(result.indices_size)))
-        let clusters_split = Array(UnsafeBufferPointer(start: result.clusters_split, count: Int(result.clusters_split_size)))
+        let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+        let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
         let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
         var start = 0
         
@@ -414,33 +406,25 @@ public class SmartClustering {
             
     }
 
-    /// Update the comparison threshold and recompute the clusters.
+    /// Find a better threshold and recompute the clusters.
     ///
     /// - Parameters:
-    ///   - threshold: The new comparison threshold.
+    ///      - expectedClusters: The gold representation of the clusters as expected
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    public func changeCandidate(threshold: Float) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
-        self.thresholdComparison = threshold
-        
+    public func changeCandidate(expectedClusters: inout ClusterDefinition) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
+        self.lock.lock()
         var result = ClusteringResult()
-        var ebds = [UnsafePointer<Float>?]()
         var ret: Int32 = -1
-        var i = 0
         
-        while i < self.textualItems.count {
-            var t = self.textualItems[i].embedding
-            ebds.append(&t)
-            i += 1
-        }
-        ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), self.thresholdComparison, &result)
+        ret = recompute_clustering_threshold(self.clustering, &expectedClusters, &result)
         
         if ret > 0 {
             throw CClusteringError.clusteringError
         }
         
-        let indices = Array(UnsafeBufferPointer(start: result.indices, count: Int(result.indices_size)))
-        let clusters_split = Array(UnsafeBufferPointer(start: result.clusters_split, count: Int(result.clusters_split_size)))
+        let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+        let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
         let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
         var start = 0
         
@@ -475,6 +459,8 @@ public class SmartClustering {
         }
         
         let similarities = self.createSimilarities()
+        
+        self.lock.unlock()
         
         return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
     }

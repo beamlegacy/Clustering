@@ -197,35 +197,23 @@ std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>> Clust
     return std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>>(values, indices);
 }
 
-int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, const double threshold, ClusteringResult* result) {
-    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-    std::vector<std::vector<float>> converted_embeddings;
-    
-    for (int i = 0;i < nb_pages;i++) {
-        std::vector<float> emdedding (embeddings[i], embeddings[i] + hidden_size);
-        
-        converted_embeddings.push_back(emdedding);
-    }
-    
+std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clusters(const uint16_t nb_pages) {
     std::vector<int> null_clusters;
     std::vector<std::vector<int>> extracted_clusters;
-    
-    this->cosine_similarity_matrix(converted_embeddings);
-    
     std::vector<std::vector<float>> topk_values = std::get<0>(this->topk_matrix(1));
     
     for (int i = 0;i < topk_values.size();i++) {
         if (topk_values[i].back() == 0.0) {
             null_clusters.push_back(i);
-        } else if (topk_values[i].back() >= threshold) {
+        } else if (topk_values[i].back() >= this->threshold) {
             std::vector<int> new_cluster;
-            std::tuple<std::vector<float>, std::vector<int>> topk_res = this->topk(converted_embeddings.size(), this->similarities[i]);
+            std::tuple<std::vector<float>, std::vector<int>> topk_res = this->topk(nb_pages, this->similarities[i]);
             std::vector<float> top_val_large = std::get<0>(topk_res);
             std::vector<int> top_idx_large = std::get<1>(topk_res);
             
-            if (top_val_large.back() < threshold) {
+            if (top_val_large.back() < this->threshold) {
                 for (int j = 0;j < top_idx_large.size();j++) {
-                    if (top_val_large[j] <= threshold) {
+                    if (top_val_large[j] <= this->threshold) {
                         break;
                     }
                     
@@ -233,7 +221,7 @@ int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_
                 }
             } else {
                 for (int j = 0;j < this->similarities[i].size();j++) {
-                    if (this->similarities[i][j] >= threshold) {
+                    if (this->similarities[i][j] >= this->threshold) {
                         new_cluster.push_back(j);
                     }
                 }
@@ -273,8 +261,33 @@ int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_
         }
     }
     
-    assert(unique_clusters.size() == converted_embeddings.size());
+    return std::tuple<std::vector<uint16_t>, std::vector<uint16_t>>(unique_clusters, clusters_size);
+}
+
+int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, ClusteringResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<float>> converted_embeddings;
     
+    for (int i = 0;i < nb_pages;i++) {
+        std::vector<float> emdedding (embeddings[i], embeddings[i] + hidden_size);
+        
+        converted_embeddings.push_back(emdedding);
+    }
+    
+    this->cosine_similarity_matrix(converted_embeddings);
+    
+    std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters = this->compute_clusters(nb_pages);
+    
+    assert(std::get<0>(result_clusters).size() == converted_embeddings.size());
+    
+    this->format_clustering_result(result_clusters, result, start);
+    
+    return 0;
+}
+
+void Clustering::format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start) {
+    std::vector<uint16_t> unique_clusters = std::get<0>(result_clusters);
+    std::vector<uint16_t> clusters_size = std::get<1>(result_clusters);
     std::vector<float> single_d_similarities;
     
     for (auto sim : this->similarities) {
@@ -282,20 +295,82 @@ int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_
         single_d_similarities.insert(single_d_similarities.end(), sim.begin(), sim.end());
     }
     
-    result->indices = new uint16_t[unique_clusters.size()];
-    result->clusters_split = new uint16_t[clusters_size.size()];
+    result->cluster = new ClusterDefinition();
+    result->cluster->indices = new uint16_t[unique_clusters.size()];
+    result->cluster->clusters_split = new uint16_t[clusters_size.size()];
     result->similarities = new float[unique_clusters.size() * unique_clusters.size()];
     
-    std::memcpy(result->indices, unique_clusters.data(), sizeof(uint16_t) * unique_clusters.size());
-    std::memcpy(result->clusters_split, clusters_size.data(), sizeof(uint16_t) * clusters_size.size());
+    std::memcpy(result->cluster->indices, unique_clusters.data(), sizeof(uint16_t) * unique_clusters.size());
+    std::memcpy(result->cluster->clusters_split, clusters_size.data(), sizeof(uint16_t) * clusters_size.size());
     std::memcpy(result->similarities, single_d_similarities.data(), sizeof(float) * unique_clusters.size() * unique_clusters.size());
     
-    result->indices_size = unique_clusters.size();
-    result->clusters_split_size = clusters_size.size();
+    result->cluster->indices_size = unique_clusters.size();
+    result->cluster->clusters_split_size = clusters_size.size();
     
     float ms = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
     
     result->performance = ms / 1000000;
+}
+
+int Clustering::recompute_clustering_threshold(const ClusterDefinition* expected_clusters, ClusteringResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    std::vector<uint16_t> converted_expected_clusters;
+    
+    for (int i = 0;i < expected_clusters->clusters_split_size;i++) {
+        std::vector<uint16_t> cluster (expected_clusters->clusters_split[i], i);
+        
+        converted_expected_clusters.reserve(converted_expected_clusters.size() + distance(cluster.begin(), cluster.end()));
+        converted_expected_clusters.insert(converted_expected_clusters.end(), cluster.begin(), cluster.end());
+    }
+    
+    std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> best_clusters;
+    float best_acc = 0.0;
+    float best_threshold = 0.0;
+    
+    for (float i = 0.0001;i < 1.0;i+=0.0001) {
+        this->threshold = i;
+        
+        std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters = this->compute_clusters(this->similarities.size());
+        
+        assert(std::get<0>(result_clusters).size() == this->similarities.size());
+        
+        std::vector<uint16_t> new_clusters;
+        
+        for (int j = 0;j < std::get<1>(result_clusters).size();j++) {
+            std::vector<uint16_t> cluster (std::get<1>(result_clusters)[j], j);
+            new_clusters.reserve(new_clusters.size() + distance(cluster.begin(), cluster.end()));
+            new_clusters.insert(new_clusters.end(), cluster.begin(), cluster.end());
+        }
+        
+        int diff = 0;
+        
+        for (int j = 0;j < new_clusters.size();j++) {
+            if (new_clusters.at(j) != converted_expected_clusters.at(j)) {
+                diff++;
+            }
+        }
+        
+        float acc = (new_clusters.size() - diff) / float(new_clusters.size());
+        
+        if (acc == 1) {
+            best_clusters = result_clusters;
+            
+            break;
+        } else {
+            if (acc > best_acc) {
+                best_threshold = i;
+                best_acc = acc;
+                best_clusters = result_clusters;
+            }
+        }
+    }
+    
+    this->threshold = best_threshold;
+    this->format_clustering_result(best_clusters, result, start);
     
     return 0;
+}
+
+float Clustering::get_threshold() {
+    return this->threshold;
 }
