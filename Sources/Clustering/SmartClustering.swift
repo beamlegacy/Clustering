@@ -448,7 +448,7 @@ public class SmartClustering {
             self.pagesClusters.append(clusterPage)
             self.notesClusters.append(clusterNote)
         }
-        
+          
         start = 0
         
         self.similarities.removeAll()

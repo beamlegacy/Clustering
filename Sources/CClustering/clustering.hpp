@@ -70,13 +70,13 @@ class Clustering {
         
         std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> compute_clusters(const uint16_t nb_pages);
         void format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> expected_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start);
-        float norm(const std::vector<float> &vector);
-        std::vector<float> normalize(const std::vector<float> &vector);
-        float cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2);
+        inline float norm(const std::vector<float> &vector);
+        inline std::vector<float> normalize(const std::vector<float> &vector);
+        inline float cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2);
         void cosine_similarity_matrix(const std::vector<std::vector<float>> &embeddings);
-        std::vector<int> argsort(const std::vector<float> &array);
+        inline std::vector<int> argsort(const std::vector<float> &array);
         std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>> topk_matrix(const uint16_t k);
-        std::tuple<std::vector<float>, std::vector<int>> topk(const uint16_t k, const std::vector<float> &array);
+        inline std::tuple<std::vector<float>, std::vector<int>> topk(const uint16_t k, const std::vector<float> &array);
     public:
         Clustering();
         float get_threshold();

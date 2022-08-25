@@ -111,13 +111,13 @@ int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
 
 Clustering::Clustering() {}
 
-float Clustering::norm(const std::vector<float> &vector) {
+inline float Clustering::norm(const std::vector<float> &vector) {
     float sum = std::inner_product(vector.begin(), vector.end(), vector.begin(), 0.0);
     
     return std::sqrt(sum);
 }
 
-std::vector<float> Clustering::normalize(const std::vector<float> &vector) {
+inline std::vector<float> Clustering::normalize(const std::vector<float> &vector) {
     double norm_value = this->norm(vector);
     
     if (norm_value > 0) {
@@ -133,7 +133,7 @@ std::vector<float> Clustering::normalize(const std::vector<float> &vector) {
     return vector;
 }
 
-float Clustering::cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2) {
+inline float Clustering::cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2) {
     std::vector<float> vector1_norm = this->normalize(vector1);
     std::vector<float> vector2_norm = this->normalize(vector2);
     std::vector<float> zeros(vector1.size(), 0);
@@ -162,7 +162,7 @@ void Clustering::cosine_similarity_matrix(const std::vector<std::vector<float>> 
     }
 }
 
-std::vector<int> Clustering::argsort(const std::vector<float> &array) {
+inline std::vector<int> Clustering::argsort(const std::vector<float> &array) {
     std::vector<int> indices_vector(array.size());
     
     std::iota(indices_vector.begin(), indices_vector.end(), 0);
@@ -174,7 +174,7 @@ std::vector<int> Clustering::argsort(const std::vector<float> &array) {
     return indices_vector;
 }
 
-std::tuple<std::vector<float>, std::vector<int>> Clustering::topk(const uint16_t k, const std::vector<float> &array) {
+inline std::tuple<std::vector<float>, std::vector<int>> Clustering::topk(const uint16_t k, const std::vector<float> &array) {
     std::vector<int> indices_vector = this->argsort(array);
     std::vector<float> sorted_vector(array);
     
