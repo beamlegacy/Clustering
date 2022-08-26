@@ -192,10 +192,12 @@ public class SmartClustering {
         
         self.textualItems.remove(at: textualItemIndex)
         
-        if type == TextualItemType.page {
-            self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
-        } else {
-            self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
+        if coordinates != (-1, -1) {
+            if type == TextualItemType.page {
+                self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
+            } else {
+                self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
+            }
         }
         
         for i in 0...self.similarities.count - 1 {
