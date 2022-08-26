@@ -420,22 +420,43 @@ public class SmartClustering {
     ///      - expectedClusters: The gold representation of the clusters as expected
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
-    public func changeCandidate(expectedClusters: inout ClusterDefinition) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
+    public func changeCandidate(expectedClusters: [[TextualItem]]) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
             self.queue.async {
                 do {
                     var result = ClusteringResult()
                     var ret: Int32 = -1
                     var expectedClustersDefinition = ClusterDefinition()
+                    var indices = [UInt16]()
+                    var clusters_split = [UInt16]()
                     
-                    ret = recompute_clustering_threshold(self.clustering, &expectedClusters, &result)
+                    for cluster in expectedClusters {
+                        clusters_split.append(UInt16(cluster.count))
+                        
+                        for textualItem in cluster {
+                            indices.append(UInt16(self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)))
+                        }
+                    }
+                    
+                    let pointer_indices = UnsafeMutablePointer<UInt16>.allocate(capacity: indices.count)
+                    let pointer_clusters_split = UnsafeMutablePointer<UInt16>.allocate(capacity: clusters_split.count)
+                    
+                    pointer_indices.initialize(from: indices, count: indices.count)
+                    pointer_clusters_split.initialize(from: clusters_split, count: clusters_split.count)
+                    
+                    expectedClustersDefinition.indices = pointer_indices
+                    expectedClustersDefinition.indices_size = UInt16(indices.count)
+                    expectedClustersDefinition.clusters_split = pointer_clusters_split
+                    expectedClustersDefinition.clusters_split_size = UInt16(clusters_split.count)
+                    
+                    ret = recompute_clustering_threshold(self.clustering, &expectedClustersDefinition, &result)
                     
                     if ret > 0 {
                         throw CClusteringError.clusteringError
                     }
                     
-                    let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
-                    let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
+                    indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+                    clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
                     let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
                     var start = 0
                     
