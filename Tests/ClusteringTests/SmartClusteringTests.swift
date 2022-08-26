@@ -66,8 +66,6 @@ class SmartClusteringTests: XCTestCase {
         exp.fulfill()
         
         await waitForExpectations(timeout: 2)
-        
-        expect(cluster.pagesClusters.count).to(equal(1))
     }
     
     func testAddBeforePrepareEnds() async throws {
