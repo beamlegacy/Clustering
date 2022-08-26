@@ -337,9 +337,6 @@ public class SmartClustering {
         
         if coordinates != (-1, -1) {
             if type == TextualItemType.page {
-                #if DEBUG
-                print("FROM CLUSTERING - REMOVE - COORDINATES - \(coordinates)")
-                #endif
                 self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
             } else {
                 self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
