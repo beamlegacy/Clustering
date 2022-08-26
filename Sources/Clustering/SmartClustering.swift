@@ -426,6 +426,7 @@ public class SmartClustering {
                 do {
                     var result = ClusteringResult()
                     var ret: Int32 = -1
+                    var expectedClustersDefinition = ClusterDefinition()
                     
                     ret = recompute_clustering_threshold(self.clustering, &expectedClusters, &result)
                     
