@@ -36,6 +36,40 @@ class SmartClusteringTests: XCTestCase {
         expect(cluster.textualItems.count).to(equal(8))
     }
     
+    func testConcurrentAddAndRemoveSameTime() async throws {
+        let cluster = SmartClustering()
+        let exp = expectation(description: "Add")
+        
+        cluster.prepare()
+        
+        let textualItems = [
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+        ]
+        
+        for texualItem in textualItems {
+            Task {
+                _ = try await cluster.add(textualItem: texualItem)
+            }
+            Task {
+                _ = try await cluster.removeTextualItem(textualItemUUID: texualItem.uuid, textualItemTabId: texualItem.tabId)
+            }
+        }
+        
+        sleep(1)
+        exp.fulfill()
+        
+        await waitForExpectations(timeout: 2)
+        
+        expect(cluster.pagesClusters.count).to(equal(1))
+    }
+    
     func testAddBeforePrepareEnds() async throws {
         let cluster = SmartClustering()
         let exp = expectation(description: "Add")

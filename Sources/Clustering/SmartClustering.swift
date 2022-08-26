@@ -67,7 +67,7 @@ class ModelInference {
         }*/
     }
     
-    @MainActor func encode(tokenizerResult: inout TokenizerResult) async throws -> [Float] {
+    func encode(tokenizerResult: inout TokenizerResult) throws -> [Float] {
         var result = ModelResult()
         var ret: Int32 = -1
         
@@ -80,7 +80,7 @@ class ModelInference {
         throw CClusteringError.modelError
     }
     
-    @MainActor func tokenizeText(text: String) async throws -> TokenizerResult {
+    func tokenizeText(text: String) throws -> TokenizerResult {
         // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
         // to this version we could uncomment this part.
         //var content = text
@@ -115,9 +115,9 @@ public class SmartClustering {
     var pagesClusters = [[UUID]]()
     var notesClusters = [[UUID]]()
     var similarities = [[Float]]()
-    let lock = NSLock()
+    let queue = DispatchQueue(label: "Clustering")
+    let modelInf = ModelInference()
     var clustering: UnsafeMutableRawPointer!
-    @MainActor let modelInf = ModelInference()
     let websitesToUseOnlyTitle = ["youtube"]
 
     public init() {
@@ -226,33 +226,37 @@ public class SmartClustering {
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
     public func removeTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
-        self.lock.lock()
-        
-        #if DEBUG
-        print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-        #endif
-        
-        let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
-        
-        if idx != -1 {
-            try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
-        } else {
-            #if DEBUG
-            print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-            #endif
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
+            self.queue.async {
+                do {
+                    #if DEBUG
+                    print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+                    #endif
+                    
+                    let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
+                    
+                    if idx != -1 {
+                        try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
+                    } else {
+                        #if DEBUG
+                        print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
+                        #endif
+                    }
+                    
+                    var similarities = [UUID: [UUID: Float]]()
+                    
+                    if self.textualItems.count > 0 {
+                        similarities = self.createSimilarities()
+                    }
+            
+                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
-        
-        var similarities = [UUID: [UUID: Float]]()
-        
-        if self.textualItems.count > 0 {
-            similarities = self.createSimilarities()
-        }
-        
-        self.lock.unlock()
-        
-        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
     }
-    
+
     /// Turns the similarities matrix to a dict of dict.
     ///
     /// - Returns: A dict of dict representing the similarities across the textual items.
@@ -279,131 +283,135 @@ public class SmartClustering {
     ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
     ///            - similarities: Dict of dict of similiarity scores across each textual items.
     public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
-        self.lock.lock()
-        
         repeat {
         } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
-        let start_time = DispatchTime.now()
-        #if DEBUG
-        print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-        #endif
-        
-        let idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
-        
-        if idx != -1 {
-            #if DEBUG
-            print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
-            #endif
-            
-            _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
-            
-            self.textualItems.insert(textualItem, at: idx)
-        } else {
-            self.textualItems.append(textualItem)
-        }
-        
-        var text = ""
-        if !textualItem.url.isEmpty {
-            let comps = URLComponents(url: URL(string: textualItem.url)!, resolvingAgainstBaseURL: false)
-            
-            for website in self.websitesToUseOnlyTitle {
-                if let comps = comps {
-                    if let host = comps.host {
-                        if host.contains(website) {
-                            text = (textualItem.processTitle() + "</s></s>").trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
+            self.queue.async {
+                do {
+                    let startTime = DispatchTime.now()
+                    #if DEBUG
+                    print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
+                    #endif
+                    
+                    let idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
+                    
+                    if idx != -1 {
+                        #if DEBUG
+                        print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
+                        #endif
+                        
+                        _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
+                        
+                        self.textualItems.insert(textualItem, at: idx)
+                    } else {
+                        self.textualItems.append(textualItem)
+                    }
+                    
+                    var text = ""
+                    if !textualItem.url.isEmpty {
+                        let comps = URLComponents(url: URL(string: textualItem.url)!, resolvingAgainstBaseURL: false)
+                        
+                        for website in self.websitesToUseOnlyTitle {
+                            if let comps = comps {
+                                if let host = comps.host {
+                                    if host.contains(website) {
+                                        text = (textualItem.processTitle() + "</s></s>").trimmingCharacters(in: .whitespacesAndNewlines)
+                                    }
+                                }
+                            }
                         }
                     }
+        
+                    if text.isEmpty || text == "</s></s>" {
+                        text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    
+                    if text == "</s></s>" {
+                        self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Float](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
+                    } else {
+                        var tokenizedText = try self.modelInf.tokenizeText(text: text)
+                        let embedding = try self.modelInf.encode(tokenizerResult: &tokenizedText)
+                        
+                        self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
+                    }
+                    
+                    var result = ClusteringResult()
+                    var ebds = [UnsafePointer<Float>?]()
+                    var ret: Int32 = -1
+                    var i = 0
+                    
+                    while i < self.textualItems.count {
+                        var t = self.textualItems[i].embedding
+                        ebds.append(&t)
+                        i += 1
+                    }
+                    
+                    ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), &result)
+                    
+                    if ret > 0 {
+                        throw CClusteringError.clusteringError
+                    }
+                    
+                    let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+                    let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
+                    let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
+                    var start = 0
+                    
+                    self.pagesClusters.removeAll()
+                    self.notesClusters.removeAll()
+                    
+                    for split in clusters_split {
+                        var clusterPage = [UUID]()
+                        var clusterNote = [UUID]()
+                        
+                        for idx in start...(start + Int(split)) - 1 {
+                            if self.textualItems[Int(indices[Int(idx)])].type == .page {
+                                clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+                            } else {
+                                clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+                            }
+                        }
+
+                        start += Int(split)
+
+                        self.pagesClusters.append(clusterPage)
+                        self.notesClusters.append(clusterNote)
+                    }
+                    
+                    start = 0
+                    
+                    self.similarities.removeAll()
+                    
+                    for _ in stride(from: 0, to: sims.count, by: self.textualItems.count) {
+                        self.similarities.append(Array(sims[start...start+self.textualItems.count - 1]))
+                        start += self.textualItems.count
+                    }
+                    
+                    let similarities = self.createSimilarities()
+                    
+                    #if DEBUG
+                    print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
+                    for val in self.textualItems {
+                        print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
+                        print("FROM CLUSTERING - ADD - TABID: ", val.tabId)
+                        print("FROM CLUSTERING - ADD - URL: ", val.url)
+                        print("FROM CLUSTERING - ADD - Title: ", val.title)
+                        print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
+                        print("FROM CLUSTERING - ADD - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
+                        print("--------")
+                    }
+                    print("FROM CLUSTERING - ADD - Similarities: ", self.similarities)
+                    #endif
+                    let end = DispatchTime.now()
+                    let nanoTime = end.uptimeNanoseconds - startTime.uptimeNanoseconds
+                    print("Time elapsed: \(Float(nanoTime / 1000000)) ms.")
+                            
+                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities))
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
         }
-        
-        if text.isEmpty || text == "</s></s>" {
-            text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        if text == "</s></s>" {
-            self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Float](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
-        } else {
-            var tokenizedText = try await self.modelInf.tokenizeText(text: text)
-            let embedding = try await self.modelInf.encode(tokenizerResult: &tokenizedText)
-            
-            self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
-        }
-        
-        var result = ClusteringResult()
-        var ebds = [UnsafePointer<Float>?]()
-        var ret: Int32 = -1
-        var i = 0
-        
-        while i < self.textualItems.count {
-            var t = self.textualItems[i].embedding
-            ebds.append(&t)
-            i += 1
-        }
-        
-        ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), &result)
-        
-        if ret > 0 {
-            throw CClusteringError.clusteringError
-        }
-        
-        let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
-        let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
-        let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
-        var start = 0
-        
-        self.pagesClusters.removeAll()
-        self.notesClusters.removeAll()
-        
-        for split in clusters_split {
-            var clusterPage = [UUID]()
-            var clusterNote = [UUID]()
-            
-            for idx in start...(start + Int(split)) - 1 {
-                if self.textualItems[Int(indices[Int(idx)])].type == .page {
-                    clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                } else {
-                    clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                }
-            }
-
-            start += Int(split)
-
-            self.pagesClusters.append(clusterPage)
-            self.notesClusters.append(clusterNote)
-        }
-        
-        start = 0
-        
-        self.similarities.removeAll()
-        
-        for _ in stride(from: 0, to: sims.count, by: self.textualItems.count) {
-            self.similarities.append(Array(sims[start...start+self.textualItems.count - 1]))
-            start += self.textualItems.count
-        }
-        
-        let similarities = self.createSimilarities()
-        
-        #if DEBUG
-        print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-        for val in self.textualItems {
-            print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
-            print("FROM CLUSTERING - ADD - TABID: ", val.tabId)
-            print("FROM CLUSTERING - ADD - URL: ", val.url)
-            print("FROM CLUSTERING - ADD - Title: ", val.title)
-            print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
-            print("FROM CLUSTERING - ADD - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
-            print("--------")
-        }
-        print("FROM CLUSTERING - ADD - Similarities: ", self.similarities)
-        #endif
-        let end = DispatchTime.now()
-        let nanoTime = end.uptimeNanoseconds - start_time.uptimeNanoseconds
-        print("Time elapsed: \(Float(nanoTime / 1000000)) ms.")
-        self.lock.unlock()
-                
-        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
-            
     }
 
     /// Find a better threshold and recompute the clusters.
@@ -413,55 +421,61 @@ public class SmartClustering {
     /// - Returns: - pageGroups: Newly computed pages cluster.
     ///            - noteGroups: Newly computed notes cluster.
     public func changeCandidate(expectedClusters: inout ClusterDefinition) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
-        self.lock.lock()
-        var result = ClusteringResult()
-        var ret: Int32 = -1
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
+            self.queue.async {
+                do {
+                    var result = ClusteringResult()
+                    var ret: Int32 = -1
+                    
+                    ret = recompute_clustering_threshold(self.clustering, &expectedClusters, &result)
+                    
+                    if ret > 0 {
+                        throw CClusteringError.clusteringError
+                    }
+                    
+                    let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+                    let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
+                    let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
+                    var start = 0
+                    
+                    self.pagesClusters.removeAll()
+                    self.notesClusters.removeAll()
+                    
+                    for split in clusters_split {
+                        var clusterPage = [UUID]()
+                        var clusterNote = [UUID]()
+                        
+                        for idx in start...(start + Int(split)) - 1 {
+                            if self.textualItems[Int(indices[Int(idx)])].type == .page {
+                                clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+                            } else {
+                                clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+                            }
+                        }
+
+                        start += Int(split)
+                        
+                        self.pagesClusters.append(clusterPage)
+                        self.notesClusters.append(clusterNote)
+                    }
+                      
+                    start = 0
+                    
+                    self.similarities.removeAll()
+                    
+                    for _ in stride(from: 0, to: sims.count, by: self.textualItems.count) {
+                        self.similarities.append(Array(sims[start...start+self.textualItems.count - 1]))
+                        start += self.textualItems.count
+                    }
+                    
+                    let similarities = self.createSimilarities()
         
-        ret = recompute_clustering_threshold(self.clustering, &expectedClusters, &result)
         
-        if ret > 0 {
-            throw CClusteringError.clusteringError
-        }
-        
-        let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
-        let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
-        let sims = Array(UnsafeBufferPointer(start: result.similarities, count: self.textualItems.count * self.textualItems.count))
-        var start = 0
-        
-        self.pagesClusters.removeAll()
-        self.notesClusters.removeAll()
-        
-        for split in clusters_split {
-            var clusterPage = [UUID]()
-            var clusterNote = [UUID]()
-            
-            for idx in start...(start + Int(split)) - 1 {
-                if self.textualItems[Int(indices[Int(idx)])].type == .page {
-                    clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                } else {
-                    clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
+                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities))
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
-
-            start += Int(split)
-            
-            self.pagesClusters.append(clusterPage)
-            self.notesClusters.append(clusterNote)
         }
-          
-        start = 0
-        
-        self.similarities.removeAll()
-        
-        for _ in stride(from: 0, to: sims.count, by: self.textualItems.count) {
-            self.similarities.append(Array(sims[start...start+self.textualItems.count - 1]))
-            start += self.textualItems.count
-        }
-        
-        let similarities = self.createSimilarities()
-        
-        self.lock.unlock()
-        
-        return (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities)
     }
 }
