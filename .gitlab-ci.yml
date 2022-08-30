@@ -47,7 +47,9 @@ test_project:
       - fastlane/test_output/tests.xml
       - logs
     reports:
-      cobertura: cobertura.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
       junit: test_output/tests.xml
   coverage: '/Test Coverage\: \d+(?:\.\d*)?\%/'
   only:
