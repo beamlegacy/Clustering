@@ -1,3 +1,4 @@
-# MyLibrary
+# Clustering
 
-A description of this package.
+This project implements the clustering for the purposes of the Webpage Similarity feature in Beam.
+
