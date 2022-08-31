@@ -99,7 +99,7 @@ public struct ClusteringNote {
     }
     
     public func toTextualItem() -> TextualItem {
-        return TextualItem(id: self.id, tabId: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
+        return TextualItem(id: self.id, tabId: self.id, title: self.title ?? "", originalContent: self.originalContent, type: TextualItemType.note, language: self.language)
     }
 }
 
@@ -216,7 +216,7 @@ public struct TextualItem: Equatable {
         if !self.title.isEmpty && !self.url.isEmpty {
             let comps = URLComponents(url: URL(string: self.url)!, resolvingAgainstBaseURL: false)
             let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:\\(]\\s+")
-            let splitTitle = regex.splitn(self.title)
+            let splitTitle = regex.splitn(self.title.folding(options: .diacriticInsensitive, locale: .current))
             
             if splitTitle.count > 1 {
                 let split = splitTitle[splitTitle.count - 1].split(separator: " ")

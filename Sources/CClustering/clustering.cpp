@@ -9,7 +9,7 @@
 
 Model::Model(const char* model_path, uint16_t hidden_size) {
     std::string str_model_path(model_path);
-    this->env = std::make_unique<Ort::Env>(OrtLoggingLevel::ORT_LOGGING_LEVEL_INFO, "clustering");
+    this->env = std::make_unique<Ort::Env>(OrtLoggingLevel::ORT_LOGGING_LEVEL_ERROR, "clustering");
     Ort::SessionOptions sessionOptions;
     
     sessionOptions.SetIntraOpNumThreads(4);
