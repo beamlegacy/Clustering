@@ -10,7 +10,7 @@
 			<key>LibraryIdentifier</key>
 			<string>macos-arm64_x86_64</string>
 			<key>LibraryPath</key>
-			<string>libonnxruntime.1.11.1.dylib</string>
+			<string>libonnxruntime.1.12.1.dylib</string>
 			<key>SupportedArchitectures</key>
 			<array>
 				<string>arm64</string>
