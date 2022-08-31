@@ -216,7 +216,7 @@ public struct TextualItem: Equatable {
         if !self.title.isEmpty && !self.url.isEmpty {
             let comps = URLComponents(url: URL(string: self.url)!, resolvingAgainstBaseURL: false)
             let regex = try! NSRegularExpression(pattern: "\\s*[-\\|:\\(]\\s+")
-            let splitTitle = regex.splitn(self.title)
+            let splitTitle = regex.splitn(self.title.folding(options: .diacriticInsensitive, locale: .current))
             
             if splitTitle.count > 1 {
                 let split = splitTitle[splitTitle.count - 1].split(separator: " ")
