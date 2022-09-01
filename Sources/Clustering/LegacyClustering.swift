@@ -962,7 +962,7 @@ public class LegacyClustering {
                     for pageId in pageGroup {
                         if let pageIndex = self.findPageInPages(pageID: pageId) {
                             let sim = self.entitiesMatrix.matrix[noteIndex, pageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[noteIndex, pageIndex + self.notes.count], 4.0)
-                            similarities[noteId]?[pageId] = Float(exactly: sim)!
+                            similarities[noteId]?[pageId] = Float(exactly: sim) ?? nil
                         }
                     }
                 }
@@ -975,7 +975,7 @@ public class LegacyClustering {
                         for suggestedPageId in pageGroup.filter({ $0 != pageId }) {
                             if let suggestedPageIndex = self.findPageInPages(pageID: suggestedPageId) {
                                 let sim = self.entitiesMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count] + pow(self.textualSimilarityMatrix.matrix[pageIndex + self.notes.count, suggestedPageIndex + self.notes.count], 4.0)
-                                similarities[pageId]?[suggestedPageId] = Float(exactly: sim)!
+                                similarities[pageId]?[suggestedPageId] = Float(exactly: sim) ?? nil
                             }
                         }
                     }
