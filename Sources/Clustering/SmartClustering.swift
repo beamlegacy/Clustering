@@ -330,7 +330,7 @@ public class SmartClustering {
     ///            - noteGroups: Newly computed notes cluster.
     private func removeActualTextualItem(textualItemIndex: Int, textualItemTabId: UUID) throws {
         let coordinates = self.findTextualItemIndexInClusters(of: self.textualItems[textualItemIndex].uuid, from: textualItemTabId)
-        //let uuidToRemove = self.textualItems[textualItemIndex].uuid
+        let uuidToRemove = self.textualItems[textualItemIndex].uuid
         let type = self.textualItems[textualItemIndex].type
         
         self.textualItems.remove(at: textualItemIndex)
@@ -349,7 +349,7 @@ public class SmartClustering {
 
         self.similarities.remove(at: textualItemIndex)
         
-        /*#if DEBUG
+        #if DEBUG
         print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING: ", uuidToRemove.description, " FROM Tab ID: ", textualItemTabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
@@ -361,7 +361,7 @@ public class SmartClustering {
             print("--------")
         }
         print("FROM CLUSTERING - REMOVE - Similarities: ", self.similarities)
-        #endif*/
+        #endif
     }
 
     /// Remove the given textual item and recompute the clusters.
@@ -374,19 +374,19 @@ public class SmartClustering {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Double]]), Error>) in
             self.queue.async {
                 do {
-                    /*#if DEBUG
+                    #if DEBUG
                     print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-                    #endif*/
+                    #endif
                     let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
                     var sim = [UUID: [UUID: Double]]()
                     
                     if idx != -1 {
                         try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
-                    } /*else {
+                    } else {
                         #if DEBUG
                         print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
                         #endif
-                    }*/
+                    }
                     
                     if self.textualItems.count > 0 {
                         sim = self.createSimilarities()
@@ -431,16 +431,16 @@ public class SmartClustering {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Double]]), Error>) in
             self.queue.async {
                 do {
-                    /*#if DEBUG
+                    #if DEBUG
                     print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-                    #endif*/
+                    #endif
                     
                     let idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
                     
                     if idx != -1 {
-                        /*#if DEBUG
+                        #if DEBUG
                         print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
-                        #endif*/
+                        #endif
                         _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
                         self.textualItems.insert(textualItem, at: idx)
                     } else {
@@ -479,7 +479,7 @@ public class SmartClustering {
                     
                     let similarities = self.createSimilarities()
                     
-                    /*#if DEBUG
+                    #if DEBUG
                     print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
                     for val in self.textualItems {
                         print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
@@ -491,7 +491,7 @@ public class SmartClustering {
                         print("--------")
                     }
                     print("FROM CLUSTERING - ADD - Similarities: ", self.similarities)
-                    #endif*/
+                    #endif
                 
                     continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters, similarities: similarities))
                 } catch {
