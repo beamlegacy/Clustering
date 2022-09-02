@@ -295,7 +295,7 @@ public class SmartClustering {
                     print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
                     //#endif
                     
-                    let idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
+                    var idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
                     
                     if idx != -1 {
                         //#if DEBUG
@@ -307,6 +307,7 @@ public class SmartClustering {
                         self.textualItems.insert(textualItem, at: idx)
                     } else {
                         self.textualItems.append(textualItem)
+                        idx = self.textualItems.count - 1
                     }
                     
                     var text = ""
@@ -329,12 +330,12 @@ public class SmartClustering {
                     }
                     
                     if text == "</s></s>" {
-                        self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: [Float](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
+                        self.textualItems[idx].updateEmbedding(newEmbedding: [Float](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
                     } else {
                         var tokenizedText = try self.modelInf.tokenizeText(text: text)
                         let embedding = try self.modelInf.encode(tokenizerResult: &tokenizedText)
                         
-                        self.textualItems[self.textualItems.count - 1].updateEmbedding(newEmbedding: embedding)
+                        self.textualItems[idx].updateEmbedding(newEmbedding: embedding)
                     }
                     
                     var result = ClusteringResult()
