@@ -274,7 +274,7 @@ int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_
         
         converted_embeddings.push_back(emdedding);
     }
-    
+    std::cerr << converted_embeddings << std::endl;
     this->cosine_similarity_matrix(converted_embeddings);
     
     std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters = this->compute_clusters(nb_pages);
