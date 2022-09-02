@@ -238,7 +238,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
     std::vector<uint16_t> unique_clusters;
     std::vector<uint16_t> clusters_size;
     std::set<uint16_t> extracted_ids;
-
+    std::cerr << extracted_clusters << std::endl;
     for (int i = 0;i < extracted_clusters.size();i++) {
         std::vector<int> sorted_cluster(extracted_clusters[i]);
         std::vector<uint16_t> non_overlapped_cluster;
@@ -253,7 +253,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
                 extracted_ids.insert(sorted_cluster[j]);
             }
         }
-        
+        std::cerr << non_overlapped_cluster << std::endl;
         if (non_overlapped_cluster.size() >= 1) {
             unique_clusters.reserve(unique_clusters.size() + distance(non_overlapped_cluster.begin(), non_overlapped_cluster.end()));
             unique_clusters.insert(unique_clusters.end(), non_overlapped_cluster.begin(), non_overlapped_cluster.end());
