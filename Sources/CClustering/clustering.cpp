@@ -201,8 +201,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
     std::vector<int> null_clusters;
     std::vector<std::vector<int>> extracted_clusters;
     std::vector<std::vector<float>> topk_values = std::get<0>(this->topk_matrix(1));
-    //std::cerr << this->similarities << std::endl;
-    //std::cerr << topk_values << std::endl;
+
     for (int i = 0;i < topk_values.size();i++) {
         if (topk_values[i].back() == 0.0) {
             null_clusters.push_back(i);
@@ -239,7 +238,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
     std::vector<uint16_t> unique_clusters;
     std::vector<uint16_t> clusters_size;
     std::set<uint16_t> extracted_ids;
-    //std::cerr << extracted_clusters << std::endl;
+
     for (int i = 0;i < extracted_clusters.size();i++) {
         std::vector<int> sorted_cluster(extracted_clusters[i]);
         std::vector<uint16_t> non_overlapped_cluster;
@@ -254,7 +253,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
                 extracted_ids.insert(sorted_cluster[j]);
             }
         }
-        //std::cerr << non_overlapped_cluster << std::endl;
+
         if (non_overlapped_cluster.size() >= 1) {
             unique_clusters.reserve(unique_clusters.size() + distance(non_overlapped_cluster.begin(), non_overlapped_cluster.end()));
             unique_clusters.insert(unique_clusters.end(), non_overlapped_cluster.begin(), non_overlapped_cluster.end());
@@ -274,13 +273,11 @@ int Clustering::create_clusters(const float** embeddings, const uint16_t hidden_
         
         converted_embeddings.push_back(emdedding);
     }
-    std::cerr << converted_embeddings << std::endl;
+
     this->cosine_similarity_matrix(converted_embeddings);
     
     std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters = this->compute_clusters(nb_pages);
-    //std::cerr << std::get<0>(result_clusters).size() << std::endl;
-    //std::cerr << converted_embeddings.size() << std::endl;
-    //std::cerr << nb_pages << std::endl;
+
     assert(std::get<0>(result_clusters).size() == converted_embeddings.size());
     
     this->format_clustering_result(result_clusters, result, start);

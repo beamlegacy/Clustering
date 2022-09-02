@@ -206,7 +206,7 @@ public class SmartClustering {
 
         self.similarities.remove(at: textualItemIndex)
         
-        //#if DEBUG
+        #if DEBUG
         print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING: ", uuidToRemove.description, " FROM Tab ID: ", textualItemTabId.description)
         for val in self.textualItems {
             print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
@@ -218,7 +218,7 @@ public class SmartClustering {
             print("--------")
         }
         print("FROM CLUSTERING - REMOVE - Similarities: ", self.similarities)
-        //#endif
+        #endif
     }
 
     /// Remove the given textual item and recompute the clusters.
@@ -231,18 +231,18 @@ public class SmartClustering {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
             self.queue.async {
                 do {
-                    //#if DEBUG
+                    #if DEBUG
                     print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-                    //#endif
+                    #endif
                     
                     let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
                     
                     if idx != -1 {
                         try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
                     } else {
-                        //#if DEBUG
+                        #if DEBUG
                         print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-                        //#endif
+                        #endif
                     }
                     
                     var similarities = [UUID: [UUID: Float]]()
@@ -291,16 +291,16 @@ public class SmartClustering {
             self.queue.async {
                 do {
                     let startTime = DispatchTime.now()
-                    //#if DEBUG
+                    #if DEBUG
                     print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-                    //#endif
+                    #endif
                     
                     var idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
                     
                     if idx != -1 {
-                        //#if DEBUG
+                        #if DEBUG
                         print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
-                        //#endif
+                        #endif
                         
                         _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
                         
@@ -344,7 +344,6 @@ public class SmartClustering {
                     var i = 0
                     
                     while i < self.textualItems.count {
-                        print(self.textualItems[i].embedding)
                         var t = self.textualItems[i].embedding
                         ebds.append(&t)
                         i += 1
