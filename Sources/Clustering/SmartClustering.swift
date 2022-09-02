@@ -343,6 +343,7 @@ public class SmartClustering {
                     var i = 0
                     
                     while i < self.textualItems.count {
+                        print(self.textualItems[i].embedding)
                         var t = self.textualItems[i].embedding
                         ebds.append(&t)
                         i += 1
