@@ -201,7 +201,8 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
     std::vector<int> null_clusters;
     std::vector<std::vector<int>> extracted_clusters;
     std::vector<std::vector<float>> topk_values = std::get<0>(this->topk_matrix(1));
-    
+    std::cerr << this->similarities << std::endl;
+    std::cerr << topk_values << std::endl;
     for (int i = 0;i < topk_values.size();i++) {
         if (topk_values[i].back() == 0.0) {
             null_clusters.push_back(i);
