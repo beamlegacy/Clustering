@@ -169,6 +169,16 @@ class SmartClusteringTests: XCTestCase {
         expect(Set(clusteredPageIds)).to(equal(Set([[uuids[2], uuids[3], uuids[5]], [uuids[0], uuids[1], uuids[4]]])))
     }
     
+    func testGetThreshold() throws {
+        let cluster = SmartClustering()
+        
+        cluster.prepare()
+        
+        let threshold = cluster.getThreshold()
+        
+        XCTAssertTrue(threshold == Float(0.5))
+    }
+    
     func testFullemptyPages() async throws {
         let cluster = SmartClustering()
         

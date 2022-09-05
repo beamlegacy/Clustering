@@ -127,6 +127,10 @@ public class SmartClustering {
     public func prepare() {
         self.modelInf.prepare()
     }
+    
+    public func getThreshold() -> Float {
+        return get_threshold(self.clustering)
+    }
 
     /// Find the index of a given UUID textual item.
     ///
