@@ -183,7 +183,7 @@ public struct TextualItem: Equatable {
     let beWith: [UUID]?
     var title: String
     let content: String
-    var embedding: [Double]
+    var embedding: [Float]
     let type: TextualItemType
     let cleanedContent: String?
     let originalContent: [String]?
@@ -239,7 +239,7 @@ public struct TextualItem: Equatable {
         self.tabId = newTabId
     }
 
-    mutating func updateEmbedding(newEmbedding: [Double]) {
+    mutating func updateEmbedding(newEmbedding: [Float]) {
         self.embedding = newEmbedding
     }
     

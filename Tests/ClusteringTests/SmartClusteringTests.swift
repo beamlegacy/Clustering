@@ -1,6 +1,7 @@
 import Nimble
 import XCTest
 @testable import Clustering
+@testable import CClustering
 
 
 class SmartClusteringTests: XCTestCase {
@@ -32,7 +33,7 @@ class SmartClusteringTests: XCTestCase {
         
         await waitForExpectations(timeout: 2)
         
-        expect(cluster.pagesClusters.count).to(equal(3))
+        expect(cluster.textualItems.count).to(equal(8))
     }
     
     func testConcurrentAddAndRemoveSameTime() async throws {
@@ -96,23 +97,23 @@ class SmartClusteringTests: XCTestCase {
         
         await waitForExpectations(timeout: 2)
         
-        expect(cluster.pagesClusters.count).to(equal(3))
+        expect(cluster.textualItems.count).to(equal(8))
     }
     
-    func testGoogleSearchClustering() async throws {
+    func testGoogleSearchClusteringWithChangingThreshold() async throws {
         let cluster = SmartClustering()
         
         cluster.prepare()
         
         let textualItems = [
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
+            TextualItem(id: uuids[0], tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[4], tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[5], tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[6], tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[7], tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -120,11 +121,9 @@ class SmartClusteringTests: XCTestCase {
             clusteredPageIds = try await cluster.add(textualItem: texualItem).pageGroups
         }
 
-        expect(clusteredPageIds.count).to(equal(3))
+        clusteredPageIds = try await cluster.changeCandidate(expectedClusters: [[textualItems[0], textualItems[1], textualItems[6], textualItems[7]], [textualItems[2], textualItems[3], textualItems[4], textualItems[5]]]).pageGroups
         
-        clusteredPageIds = try await cluster.changeCandidate(threshold: 0.3287).pageGroups
-        
-        expect(clusteredPageIds.count).to(equal(2))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1], uuids[6], uuids[7]], [uuids[2], uuids[3], uuids[4], uuids[5]]])))
     }
 
     func testMultilingualPages() async throws {
@@ -152,20 +151,14 @@ class SmartClusteringTests: XCTestCase {
         let cluster = SmartClustering()
         
         cluster.prepare()
-        
-        var UUIDs: [UUID] = []
-        
-        for _ in 0...5 {
-            UUIDs.append(UUID())
-        }
-        
+                
         let textualItems = [
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
+            TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.google.com/search?q=bloodborne%20sculpts", title: "Bloodborne Sculpts - Google Search", type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), url: "https://www.etsy.com/market/bloodborne_sculpture?ref=seller_tag_bottom_text-1", title:"Bloodborne Sculpture | Etsy France", type: TextualItemType.page),
+            TextualItem(id: uuids[4], tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[5], tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
         ]
         var clusteredPageIds: [[UUID]] = []
         
@@ -173,7 +166,7 @@ class SmartClusteringTests: XCTestCase {
             clusteredPageIds = try await cluster.add(textualItem: textualItem).pageGroups
         }
         
-        expect(clusteredPageIds.count).to(equal(2))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[2], uuids[3], uuids[5]], [uuids[0], uuids[1], uuids[4]]])))
     }
     
     func testFullemptyPages() async throws {
@@ -206,11 +199,11 @@ class SmartClusteringTests: XCTestCase {
         cluster.prepare()
         
         let textualItems = [
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enFedererWiki.url, title: SamplePageContent.enFedererWiki.title, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enNadalWiki.url, title: SamplePageContent.enNadalWiki.title, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.youtube.com", title: "YouTube", originalContent: ["All"], type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), title: "Roger Federer", originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
-            TextualItem(id: UUID(), tabId: UUID(), title: "Rafael Nadal", originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
+            TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.enFedererWiki.url, title: SamplePageContent.enFedererWiki.title, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.enNadalWiki.url, title: SamplePageContent.enNadalWiki.title, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
+            TextualItem(id: uuids[2], tabId: UUID(), url: "https://www.youtube.com", title: "YouTube", originalContent: ["All"], type: TextualItemType.page),
+            TextualItem(id: uuids[3], tabId: UUID(), title: "Roger Federer", originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
+            TextualItem(id: uuids[4], tabId: UUID(), title: "Rafael Nadal", originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
         ]
         var clusteredPageIds: [[UUID]] = []
         var clusteredNoteIds: [[UUID]] = []
@@ -219,8 +212,8 @@ class SmartClusteringTests: XCTestCase {
             (clusteredPageIds, clusteredNoteIds, _) = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(clusteredPageIds.count).to(equal(2))
-        expect(clusteredNoteIds.count).to(equal(2))
+        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1]], [uuids[2]]])))
+        expect(Set(clusteredNoteIds)).to(equal(Set([[uuids[3], uuids[4]], []])))
     }
     
     func testRemoveTextualItem() async throws {
@@ -301,6 +294,17 @@ class SmartClusteringTests: XCTestCase {
     }
 }
 
+let uuids = [
+    UUID(uuidString: "45EC01A0-E942-4C31-AFFB-7B69959F078A")!,
+    UUID(uuidString: "8F9F9FDA-9397-4601-A576-B1E90C089A0E")!,
+    UUID(uuidString: "82F81E03-C0BF-4B75-89A9-E683F2B18F21")!,
+    UUID(uuidString: "55D3D2CF-ABE8-4E07-B411-70E951292E43")!,
+    UUID(uuidString: "B354E048-FDA9-42F1-997A-9C7BE5BF7C9B")!,
+    UUID(uuidString: "C5A7C8FC-C5AC-43A0-98A9-3B5ED3DE271F")!,
+    UUID(uuidString: "B26A31C8-B700-4BF8-A084-47BD17CF5AD4")!,
+    UUID(uuidString: "85E79181-6F55-4D84-A3EE-DD936EAFFCF4")!,
+]
+
 private struct SamplePageContent {
     var url: String
     var title: String
@@ -329,7 +333,7 @@ extension SamplePageContent {
                                                  originalContent: ["Sa victoire à Roland-Garros en 2009 lui a permis d'accomplir le Grand Chelem en carrière sur quatre surfaces différentes. En s'adjugeant ensuite l'Open d'Australie en 2010, il devient le premier joueur de l'histoire à avoir conquis l'ensemble de ses titres du Grand Chelem sur un total de cinq surfaces, depuis le remplacement du Rebound Ace australien par une nouvelle surface : le Plexicushion. Federer a réalisé le Petit Chelem de tennis à trois reprises, en 2004, 2006 et 2007, ce qui constitue à égalité avec Novak Djokovic, le record masculin toutes périodes confondues. Il est ainsi l'unique athlète à avoir gagné trois des quatre tournois du Grand Chelem deux années successives. Il atteint à trois reprises, et dans la même saison, les finales des quatre tournois majeurs, en 2006, 2007 et 2009, un fait unique dans l'histoire de ce sport."])
 
     static let enFedererWiki = SamplePageContent(url: "https://en.wikipedia.org/wiki/Roger_Federer",
-                                                 title: "Roger Federer - Wikipédia",
+                                                 title: "Roger Federer - Wikipedia",
                                                  originalContent: ["Federer has played in an era where he dominated men's tennis together with Rafael Nadal and Novak Djokovic, who have been collectively referred to as the Big Three and are widely considered three of the greatest tennis players of all-time. A Wimbledon junior champion in 1998, Federer won his first Grand Slam singles title at Wimbledon in 2003 at age 21. In 2004, he won three out of the four major singles titles and the ATP Finals, a feat he repeated in 2006 and 2007. From 2005 to 2010, Federer made 18 out of 19 major singles finals. During this span, he won his fifth consecutive titles at both Wimbledon and the US Open. He completed the career Grand Slam at the 2009 French Open after three previous runner-ups to Nadal, his main rival up until 2010. At age 27, he also surpassed Pete Sampras's then-record of 14 Grand Slam men's singles titles at Wimbledon in 2009."])
 
     static let enNadalWiki = SamplePageContent(url: "https://en.wikipedia.org/wiki/Rafael_Nadal",
