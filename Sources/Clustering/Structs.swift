@@ -158,8 +158,10 @@ extension NSRegularExpression {
             
             if lastIndex < str.utf8.count {
                 let _range = NSRange(location: lastIndex, length: str.count - lastIndex)
-            
-                result.append(String(str[Range(_range, in: str)!]))
+                
+                if let r = Range(_range, in: str) {
+                    result.append(String(str[r]))
+                }
             }
         }
         
