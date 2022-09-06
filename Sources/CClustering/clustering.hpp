@@ -78,7 +78,7 @@ class Clustering {
         std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>> topk_matrix(const uint16_t k);
         inline std::tuple<std::vector<float>, std::vector<int>> topk(const uint16_t k, const std::vector<float> &array);
     public:
-        Clustering();
+        Clustering(const float threshold);
         float get_threshold();
         int create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, ClusteringResult* result);
         int recompute_clustering_threshold(const ClusterDefinition* clusters, ClusteringResult* result);

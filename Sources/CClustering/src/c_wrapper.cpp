@@ -43,8 +43,8 @@ extern "C" void removeTokenizer(void* handle) {
     delete tokenizer;
 }
 
-extern "C" void* createClustering() {
-    Clustering* clustering = new Clustering();
+extern "C" void* createClustering(const float threshold) {
+    Clustering* clustering = new Clustering(threshold);
     
     return (void*) clustering;
 }

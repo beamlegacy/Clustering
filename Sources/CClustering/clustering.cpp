@@ -109,7 +109,11 @@ int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
     return 0;
 }
 
-Clustering::Clustering() {}
+Clustering::Clustering(const float threshold) {
+    if (threshold > -1) {
+        this->threshold = threshold;
+    }
+}
 
 inline float Clustering::norm(const std::vector<float> &vector) {
     float sum = std::inner_product(vector.begin(), vector.end(), vector.begin(), 0.0);
