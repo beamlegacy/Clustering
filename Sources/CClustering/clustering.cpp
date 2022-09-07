@@ -110,7 +110,7 @@ int Tokenizer::tokenize(const char* text, TokenizerResult* result) {
 }
 
 Clustering::Clustering(const float threshold) {
-    if (threshold > -1) {
+    if (threshold > 0) {
         this->threshold = threshold;
     }
 }
