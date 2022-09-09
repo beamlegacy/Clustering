@@ -120,8 +120,8 @@ public class SmartClustering {
     var clustering: UnsafeMutableRawPointer!
     let websitesToUseOnlyTitle = ["youtube"]
 
-    public init() {
-        self.clustering = createClustering()
+    public init(threshold: Float = -1.0) {
+        self.clustering = createClustering(threshold)
     }
     
     public func prepare() {

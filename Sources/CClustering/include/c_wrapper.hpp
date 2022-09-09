@@ -43,7 +43,7 @@ void* createTokenizer(const char* tokenizer_path, uint16_t max_seq_length);
 int tokenize(void* handle, const char* text, struct TokenizerResult* result);
 void removeTokenizer(void* handle);
 
-void* createClustering();
+void* createClustering(const float threshold);
 int create_clusters(void* handle, const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, struct ClusteringResult* result);
 int recompute_clustering_threshold(void* handle, const struct ClusterDefinition* expected_clusters, struct ClusteringResult* result);
 float get_threshold(void* handle);
