@@ -4,109 +4,7 @@ import CClustering
 
 
 enum CClusteringError: Error {
-    case tokenizerError
-    case modelError
     case clusteringError
-}
-
-
-class ModelInference {
-    let hidden_size: UInt16 = 384
-    var model: UnsafeMutableRawPointer!
-    var tokenizer: UnsafeMutableRawPointer!
-    
-    func prepare() {
-        self.prepareModel()
-        self.prepareTokenizer()
-    }
-    
-    private func prepareModel() {
-        if self.model != nil {
-            return
-        }
-        
-        guard let modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
-          fatalError("Resources not found")
-        }
-        
-        let bytesModel = modelPath.utf8CString
-        //let bytesTokenizer = tokenizerModelPath.utf8CString
-        
-        bytesModel.withUnsafeBufferPointer { ptrModel in
-            self.model = createModel(ptrModel.baseAddress, self.hidden_size)
-        }
-        
-        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
-        // to this version we could uncomment this part.
-        /*modelPath.withUTF8 { cModelPath in
-            model = createModel(ptrModel.baseAddress, 384)
-        }*/
-    }
-    
-    private func prepareTokenizer() {
-        if self.tokenizer != nil {
-            return
-        }
-        
-        guard let tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
-        else {
-          fatalError("Resources not found")
-        }
-        
-        let bytesTokenizer = tokenizerModelPath.utf8CString
-        
-        bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
-            self.tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
-        }
-        
-        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
-        // to this version we could uncomment this part.
-        /*tokenizerModelPath.withUTF8 { cTokenizerModelPath in
-            tokenizer = createTokenizer(ptrTokenizer.baseAddress, 128)
-        }
-        }*/
-    }
-    
-    func encode(tokenizerResult: inout TokenizerResult) throws -> [Float] {
-        var result = ModelResult()
-        var ret: Int32 = -1
-        
-        ret = predict(self.model, &tokenizerResult, &result)
-            
-        if ret == 0 {
-            return Array(UnsafeBufferPointer(start: result.weigths, count: Int(result.size)))
-        }
-        
-        throw CClusteringError.modelError
-    }
-    
-    func tokenizeText(text: String) throws -> TokenizerResult {
-        // The comments below represents the way to do use UTF-8 C Strings with >= Swift 5.6.1. The day we will switch
-        // to this version we could uncomment this part.
-        //var content = text
-        var result = TokenizerResult()
-        var ret: Int32 = -1
-        
-        /*content.withUTF8 { cText in
-            ret = tokenize(self.tokenizer, ptrText.baseAddress, &result)
-        }*/
-        let bytesText = text.utf8CString
-        
-        bytesText.withUnsafeBufferPointer { ptrText in
-            ret = tokenize(self.tokenizer, ptrText.baseAddress, &result)
-        }
-            
-        if ret == 0 {
-            return result
-        }
-        
-        throw CClusteringError.tokenizerError
-    }
-    
-    deinit {
-        removeModel(self.model)
-        removeTokenizer(self.tokenizer)
-    }
 }
 
 
@@ -116,16 +14,25 @@ public class SmartClustering {
     var notesClusters = [[UUID]]()
     var similarities = [[Float]]()
     let queue = DispatchQueue(label: "Clustering")
-    let modelInf = ModelInference()
     var clustering: UnsafeMutableRawPointer!
     let websitesToUseOnlyTitle = ["youtube"]
 
     public init(threshold: Float = -1.0) {
-        self.clustering = createClustering(threshold)
-    }
-    
-    public func prepare() {
-        self.modelInf.prepare()
+        guard let modelPath = Bundle.module.path(forResource: "model-optimized-int32-quantized", ofType: "onnx", inDirectory: "Resources") else {
+          fatalError("Resources not found")
+        }
+        guard let tokenizerModelPath = Bundle.module.path(forResource: "sentencepiece", ofType: "bpe.model", inDirectory: "Resources")
+        else {
+          fatalError("Resources not found")
+        }
+        let bytesModel = modelPath.utf8CString
+        let bytesTokenizer = tokenizerModelPath.utf8CString
+        
+        bytesModel.withUnsafeBufferPointer { ptrModel in
+            bytesTokenizer.withUnsafeBufferPointer { ptrTokenizer in
+                self.clustering = createClustering(threshold, ptrModel.baseAddress, 384, ptrTokenizer.baseAddress, 128)
+            }
+        }
     }
     
     public func getThreshold() -> Float {
@@ -193,6 +100,13 @@ public class SmartClustering {
         let coordinates = self.findTextualItemIndexInClusters(of: self.textualItems[textualItemIndex].uuid, from: textualItemTabId)
         let uuidToRemove = self.textualItems[textualItemIndex].uuid
         let type = self.textualItems[textualItemIndex].type
+        var ret: Int32 = -1
+        
+        ret = remove_textual_item(self.clustering, Int32(textualItemIndex))
+        
+        if ret > 0 {
+            throw CClusteringError.clusteringError
+        }
         
         self.textualItems.remove(at: textualItemIndex)
         
@@ -290,7 +204,7 @@ public class SmartClustering {
     ///            - similarities: Dict of dict of similiarity scores across each textual items.
     public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]], similarities: [UUID: [UUID: Float]]) {
         repeat {
-        } while self.modelInf.tokenizer == nil || self.modelInf.model == nil
+        } while self.clustering == nil
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]], [UUID: [UUID: Float]]), Error>) in
             self.queue.async {
                 do {
@@ -333,27 +247,13 @@ public class SmartClustering {
                         text = (textualItem.processTitle() + "</s></s>" + textualItem.content).trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                     
-                    if text == "</s></s>" {
-                        self.textualItems[idx].updateEmbedding(newEmbedding: [Float](repeating: 0.0, count: Int(self.modelInf.hidden_size)))
-                    } else {
-                        var tokenizedText = try self.modelInf.tokenizeText(text: text)
-                        let embedding = try self.modelInf.encode(tokenizerResult: &tokenizedText)
-                        
-                        self.textualItems[idx].updateEmbedding(newEmbedding: embedding)
-                    }
-                    
                     var result = ClusteringResult()
-                    var ebds = [UnsafePointer<Float>?]()
                     var ret: Int32 = -1
-                    var i = 0
+                    let bytesContent = text.utf8CString
                     
-                    while i < self.textualItems.count {
-                        var t = self.textualItems[i].embedding
-                        ebds.append(&t)
-                        i += 1
+                    bytesContent.withUnsafeBufferPointer { ptrContent in
+                        ret = add_textual_item(self.clustering, ptrContent.baseAddress, &result)
                     }
-                    
-                    ret = create_clusters(self.clustering, &ebds, self.modelInf.hidden_size, UInt16(self.textualItems.count), &result)
                     
                     if ret > 0 {
                         throw CClusteringError.clusteringError

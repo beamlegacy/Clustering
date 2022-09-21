@@ -8,9 +8,6 @@ class SmartClusteringTests: XCTestCase {
     func testConcurrentAdd() async throws {
         let cluster = SmartClustering()
         let exp = expectation(description: "Add")
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
@@ -39,9 +36,6 @@ class SmartClusteringTests: XCTestCase {
     func testConcurrentAddAndRemoveSameTime() async throws {
         let cluster = SmartClustering()
         let exp = expectation(description: "Add")
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
@@ -68,43 +62,8 @@ class SmartClusteringTests: XCTestCase {
         await waitForExpectations(timeout: 2)
     }
     
-    func testAddBeforePrepareEnds() async throws {
-        let cluster = SmartClustering()
-        let exp = expectation(description: "Add")
-        let textualItems = [
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=cat", title: "cat - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=dog", title: "dog - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=worm", title: "worm - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=snake", title: "snake - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
-            TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
-        ]
-        
-        Task {
-            cluster.prepare()
-        }
-        
-        for texualItem in textualItems {
-            Task {
-                _ = try await cluster.add(textualItem: texualItem).pageGroups
-            }
-        }
-        
-        sleep(1)
-        exp.fulfill()
-        
-        await waitForExpectations(timeout: 2)
-        
-        expect(cluster.textualItems.count).to(equal(8))
-    }
-    
     func testGoogleSearchClusteringWithChangingThreshold() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: uuids[0], tabId: UUID(), url: "https://www.google.com/search?q=mozart", title: "mozart - Google Search", type: TextualItemType.page),
             TextualItem(id: uuids[1], tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", title: "classical music mozart - Google Search", type: TextualItemType.page),
@@ -128,9 +87,6 @@ class SmartClusteringTests: XCTestCase {
 
     func testMultilingualPages() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.enFedererWiki.url, title: SamplePageContent.enFedererWiki.title, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frFedererWiki.url, title: SamplePageContent.frFedererWiki.title, originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.page),
@@ -149,9 +105,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testLongAndShortText() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-                
         let textualItems = [
             TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.frAndroidNvidiaShield.url, title: SamplePageContent.frAndroidNvidiaShield.title, originalContent: SamplePageContent.frAndroidNvidiaShield.originalContent, type: TextualItemType.page),
             TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.frAndroidSoldes.url, title: SamplePageContent.frAndroidSoldes.title, originalContent: SamplePageContent.frAndroidSoldes.originalContent, type: TextualItemType.page),
@@ -171,19 +124,13 @@ class SmartClusteringTests: XCTestCase {
     
     func testGetThreshold() throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let threshold = cluster.getThreshold()
         
-        XCTAssertTrue(threshold == Float(0.5))
+        XCTAssertTrue(threshold == Float(0.4659))
     }
     
     func testFullemptyPages() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=mozart", type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=classical%20music%20mozart", type: TextualItemType.page),
@@ -205,9 +152,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testMixPageNote() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let textualItems = [
             TextualItem(id: uuids[0], tabId: UUID(), url: SamplePageContent.enFedererWiki.url, title: SamplePageContent.enFedererWiki.title, originalContent: SamplePageContent.enFedererWiki.originalContent, type: TextualItemType.page),
             TextualItem(id: uuids[1], tabId: UUID(), url: SamplePageContent.enNadalWiki.url, title: SamplePageContent.enNadalWiki.title, originalContent: SamplePageContent.enNadalWiki.originalContent, type: TextualItemType.page),
@@ -228,9 +172,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testRemoveTextualItem() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         var pageUUIDs: [UUID] = []
         var tabUUIDs: [UUID] = []
         var clusteredPageIds: [[UUID]] = []
@@ -258,9 +199,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testAddMultipleTimesTheSamePage() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let pageUUID = UUID()
         let tabUUID = UUID()
         var clusteredPageIds: [[UUID]] = []
@@ -276,9 +214,6 @@ class SmartClusteringTests: XCTestCase {
     
     func testAddMultipleTimesTheSamePageFromDifferentTab() async throws {
         let cluster = SmartClustering()
-        
-        cluster.prepare()
-        
         let pageUUID = UUID()
         var tabUUIDs: [UUID] = []
         var clusteredPageIds: [[UUID]] = []
