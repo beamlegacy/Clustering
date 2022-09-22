@@ -176,7 +176,7 @@ class SmartClusteringTests: XCTestCase {
         
         let threshold = cluster.getThreshold()
         
-        XCTAssertTrue(threshold == Float(0.5))
+        XCTAssertTrue(threshold == Float(0.4659))
     }
     
     func testFullemptyPages() async throws {

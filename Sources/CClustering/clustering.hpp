@@ -66,7 +66,7 @@ class Model {
 class Clustering {
     private:
         std::vector<std::vector<float>> similarities;
-        float threshold = 0.5;
+        float threshold = 0.4659;
         
         std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> compute_clusters(const uint16_t nb_pages);
         void format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> expected_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start);
