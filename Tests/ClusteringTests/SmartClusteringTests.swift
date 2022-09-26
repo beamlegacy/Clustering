@@ -163,7 +163,7 @@ class SmartClusteringTests: XCTestCase {
         var clusteredNoteIds: [[UUID]] = []
         
         for textualItem in textualItems {
-            (clusteredPageIds, clusteredNoteIds, _) = try await cluster.add(textualItem: textualItem)
+            (clusteredPageIds, clusteredNoteIds) = try await cluster.add(textualItem: textualItem)
         }
         
         expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1]], [uuids[2]]])))
