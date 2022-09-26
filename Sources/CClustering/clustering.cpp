@@ -311,11 +311,9 @@ void Clustering::format_clustering_result(std::tuple<std::vector<uint16_t>, std:
     result->cluster = new ClusterDefinition();
     result->cluster->indices = new uint16_t[unique_clusters.size()];
     result->cluster->clusters_split = new uint16_t[clusters_size.size()];
-    result->similarities = new float[unique_clusters.size() * unique_clusters.size()];
     
     std::memcpy(result->cluster->indices, unique_clusters.data(), sizeof(uint16_t) * unique_clusters.size());
     std::memcpy(result->cluster->clusters_split, clusters_size.data(), sizeof(uint16_t) * clusters_size.size());
-    std::memcpy(result->similarities, single_d_similarities.data(), sizeof(float) * unique_clusters.size() * unique_clusters.size());
     
     result->cluster->indices_size = unique_clusters.size();
     result->cluster->clusters_split_size = clusters_size.size();

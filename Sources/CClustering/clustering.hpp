@@ -28,7 +28,6 @@ struct ClusterDefinition {
 
 struct ClusteringResult {
     ClusterDefinition* cluster;
-    float* similarities;
     float performance_tokenizer;
     float performance_inference;
     float performance_clustering;

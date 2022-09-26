@@ -19,7 +19,6 @@ struct ClusterDefinition {
 
 struct ClusteringResult {
     struct ClusterDefinition* cluster;
-    float* similarities;
     float performance;
 };
 
