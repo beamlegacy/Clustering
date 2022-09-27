@@ -298,6 +298,7 @@ int Clustering::remove_textual_item(const int idx) {
     return 0;
 }
 
+// Turn the C++ results into a Swift understandable structure.
 void Clustering::format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start) {
     std::vector<uint16_t> unique_clusters = std::get<0>(result_clusters);
     std::vector<uint16_t> clusters_size = std::get<1>(result_clusters);
@@ -323,6 +324,7 @@ void Clustering::format_clustering_result(std::tuple<std::vector<uint16_t>, std:
     result->performance_clustering = ms / 1000000;
 }
 
+// Compute the optimal threshold for a given cluster.
 int Clustering::recompute_clustering_threshold(const ClusterDefinition* expected_clusters, ClusteringResult* result) {
     std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     std::vector<uint16_t> converted_expected_clusters;
