@@ -13,10 +13,10 @@ extern "C" void* createClustering(const float threshold, const char* model_path,
     return (void*) clustering;
 }
 
-extern "C" int add_textual_item(void* handle, const char* text, struct ClusteringResult* result) {
+extern "C" int add_textual_item(void* handle, const char* text, const int idx, struct ClusteringResult* result) {
     Clustering* clustering = (Clustering*)handle;
     
-    return clustering->add_textual_item(text, result);
+    return clustering->add_textual_item(text, idx, result);
 }
 
 extern "C" int remove_textual_item(void* handle, const int idx, const int from_add, struct ClusteringResult* result) {

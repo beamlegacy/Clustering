@@ -172,7 +172,7 @@ public class SmartClustering {
                     let bytesContent = text.utf8CString
                     
                     bytesContent.withUnsafeBufferPointer { ptrContent in
-                        ret = add_textual_item(self.clustering, ptrContent.baseAddress, &result)
+                        ret = add_textual_item(self.clustering, ptrContent.baseAddress, Int32(idx), &result)
                     }
                     
                     if ret > 0 {

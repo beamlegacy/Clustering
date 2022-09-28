@@ -254,7 +254,7 @@ std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> Clustering::compute_clu
     return std::tuple<std::vector<uint16_t>, std::vector<uint16_t>>(unique_clusters, clusters_size);
 }
 
-int Clustering::add_textual_item(const char* text, ClusteringResult* result) {
+int Clustering::add_textual_item(const char* text, const int idx, ClusteringResult* result) {
     std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     std::string content(text);
     
@@ -264,7 +264,9 @@ int Clustering::add_textual_item(const char* text, ClusteringResult* result) {
         result->performance_tokenizer = 0;
         result->performance_inference = 0;
         
-        this->embeddings.push_back(zeros);
+        auto it_pos = this->embeddings.begin() + idx;
+        
+        this->embeddings.insert(it_pos, zeros);
     } else {
         std::tuple<std::vector<int32_t>, float> tokenizer_output = this->tokenizer.tokenize(std::string(content));
         std::tuple<std::vector<float>, float> inference_output = this->model.predict(std::get<0>(tokenizer_output));
@@ -272,7 +274,9 @@ int Clustering::add_textual_item(const char* text, ClusteringResult* result) {
         result->performance_tokenizer = std::get<1>(tokenizer_output);
         result->performance_inference = std::get<1>(inference_output);
         
-        this->embeddings.push_back(std::get<0>(inference_output));
+        auto it_pos = this->embeddings.begin() + idx;
+        
+        this->embeddings.insert(it_pos, std::get<0>(inference_output));
     }
     
     this->cosine_similarity_matrix();

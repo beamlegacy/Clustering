@@ -73,7 +73,7 @@ class Clustering {
     public:
         Clustering(const float threshold, const char* model_path, uint16_t hidden_size, const char* tokenizer_model_path, uint16_t max_seq_length);
         float get_threshold();
-        int add_textual_item(const char* text, ClusteringResult* result);
+        int add_textual_item(const char* text, const int idx, ClusteringResult* result);
         int remove_textual_item(const int idx, const int from_add, ClusteringResult* result);
         int recompute_clustering_threshold(const ClusterDefinition* clusters, ClusteringResult* result);
 };
