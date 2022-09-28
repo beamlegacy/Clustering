@@ -1,5 +1,6 @@
 import Foundation
 import NaturalLanguage
+import CClustering
 
 public struct EntitiesInText : Equatable {
     var entities = ["PersonalName": [String](), "PlaceName": [String](), "OrganizationName": [String]()]
@@ -185,7 +186,6 @@ public struct TextualItem: Equatable {
     let beWith: [UUID]?
     var title: String
     let content: String
-    var embedding: [Float]
     let type: TextualItemType
     let cleanedContent: String?
     let originalContent: [String]?
@@ -206,7 +206,6 @@ public struct TextualItem: Equatable {
             self.content = ""
         }
         
-        self.embedding = []
         self.type = type
         self.language = language
         self.parentId = parentId
@@ -241,10 +240,6 @@ public struct TextualItem: Equatable {
         self.tabId = newTabId
     }
 
-    mutating func updateEmbedding(newEmbedding: [Float]) {
-        self.embedding = newEmbedding
-    }
-    
     func toPage() -> Page {
         return Page(id: self.uuid, tabId: self.tabId, parentId: self.parentId, url: URL(string: self.url), title: self.title, originalContent: self.originalContent, cleanedContent: cleanedContent, language: self.language, beWith: self.beWith, beApart: self.beApart)
     }

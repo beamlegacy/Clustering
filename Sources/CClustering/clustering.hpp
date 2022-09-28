@@ -19,18 +19,6 @@
 #include <iomanip>
 
 
-struct ModelResult {
-    float* weigths;
-    uint16_t size;
-    float performance;
-};
-
-struct TokenizerResult {
-    uint32_t* input_ids;
-    uint16_t size;
-    float performance;
-};
-
 struct ClusterDefinition {
     uint16_t* indices;
     uint16_t indices_size;
@@ -40,8 +28,9 @@ struct ClusterDefinition {
 
 struct ClusteringResult {
     ClusterDefinition* cluster;
-    float* similarities;
-    float performance;
+    float performance_tokenizer;
+    float performance_inference;
+    float performance_clustering;
 };
 
 class Tokenizer {
@@ -49,38 +38,43 @@ class Tokenizer {
         sentencepiece::SentencePieceProcessor tokenizer;
         uint16_t max_seq_length;
     public:
-        Tokenizer(const char* tokenizer_model_path, uint16_t max_seq_length);
-        int tokenize(const char* text, TokenizerResult* result);
+        Tokenizer(std::string tokenizer_model_path, uint16_t max_seq_length);
+        std::tuple<std::vector<int32_t>, float> tokenize(std::string text);
 };
 
 class Model {
     private:
         std::unique_ptr<Ort::Session> session;
         std::unique_ptr<Ort::Env> env;
-        uint16_t hidden_size;
     public:
-        Model(const char* model_path, uint16_t hidden_size);
-        int predict(const TokenizerResult* tokenizer_result, ModelResult* result);
+        uint16_t hidden_size;
+    
+        Model(std::string model_path, uint16_t hidden_size);
+        std::tuple<std::vector<float>, float> predict(std::vector<int32_t> input_ids);
 };
 
 class Clustering {
     private:
         std::vector<std::vector<float>> similarities;
+        std::vector<std::vector<float>> embeddings;
         float threshold = 0.4659;
+        Model model;
+        Tokenizer tokenizer;
         
-        std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> compute_clusters(const uint16_t nb_pages);
+        std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> compute_clusters();
         void format_clustering_result(std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> expected_clusters, ClusteringResult* result, std::chrono::high_resolution_clock::time_point start);
         inline float norm(const std::vector<float> &vector);
         inline std::vector<float> normalize(const std::vector<float> &vector);
         inline float cosine_similarity(const std::vector<float> &vector1, const std::vector<float> &vector2);
-        void cosine_similarity_matrix(const std::vector<std::vector<float>> &embeddings);
+        void cosine_similarity_matrix();
         inline std::vector<int> argsort(const std::vector<float> &array);
         std::tuple<std::vector<std::vector<float>>, std::vector<std::vector<int>>> topk_matrix(const uint16_t k);
         inline std::tuple<std::vector<float>, std::vector<int>> topk(const uint16_t k, const std::vector<float> &array);
     public:
-        Clustering(const float threshold);
+        Clustering(const float threshold, const char* model_path, uint16_t hidden_size, const char* tokenizer_model_path, uint16_t max_seq_length);
         float get_threshold();
-        int create_clusters(const float** embeddings, const uint16_t hidden_size, const uint16_t nb_pages, ClusteringResult* result);
+        int add_textual_item(const char* text, const int idx, ClusteringResult* result);
+        int remove_textual_item(const int idx, const int from_add, ClusteringResult* result);
         int recompute_clustering_threshold(const ClusterDefinition* clusters, ClusteringResult* result);
 };
 
