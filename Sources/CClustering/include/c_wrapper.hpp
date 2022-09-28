@@ -25,7 +25,7 @@ struct ClusteringResult {
 
 void* createClustering(const float threshold, const char* model_path, uint16_t hidden_size, const char* tokenizer_model_path, uint16_t max_seq_length);
 int add_textual_item(void* handle, const char* text, struct ClusteringResult* result);
-int remove_textual_item(void* handle, const int idx);
+int remove_textual_item(void* handle, const int idx, const int from_add, struct ClusteringResult* result);
 int recompute_clustering_threshold(void* handle, const struct ClusterDefinition* expected_clusters, struct ClusteringResult* result);
 float get_threshold(void* handle);
 void removeClustering(void* handle);

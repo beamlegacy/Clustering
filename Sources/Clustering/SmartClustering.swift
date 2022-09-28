@@ -9,9 +9,7 @@ enum CClusteringError: Error {
 
 
 public class SmartClustering {
-    var textualItems = [TextualItem]()
-    var pagesClusters = [[UUID]]()
-    var notesClusters = [[UUID]]()
+    var textualItems = [(UUID, UUID)]()
     let queue = DispatchQueue(label: "Clustering")
     var clustering: UnsafeMutableRawPointer!
     let websitesToUseOnlyTitle = ["youtube"]
@@ -46,7 +44,7 @@ public class SmartClustering {
     /// - Returns: The corresponding index.
     private func findTextualItemIndex(of: UUID, from: UUID) -> Int {
         for (idx, textualItem) in self.textualItems.enumerated() {
-            if textualItem.uuid == of && from == textualItem.tabId  {
+            if textualItem.0 == of && from == textualItem.1  {
                 return idx
             }
         }
@@ -54,108 +52,72 @@ public class SmartClustering {
         return -1
     }
     
-    /// Find the cluster index of a given UUID textual item.
+    /// Format the C++ clustering result
     ///
     /// - Parameters:
-    ///   - of: The textual item UUID to find.
-    ///   - from: The tab UUID containing the textual item
-    /// - Returns: - clusterIndex: First dimension index.
-    ///            - indexInCluster: Second dimension index.
-    private func findTextualItemIndexInClusters(of: UUID, from: UUID) -> (clusterIndex: Int, indexInCluster: Int) {
-        for (clusterIndex, cluster) in self.pagesClusters.enumerated() {
-            for (indexInCluster, uuid) in cluster.enumerated() {
-                if uuid == of {
-                    let idx = self.findTextualItemIndex(of: uuid, from: from)
-                    
-                    if idx != -1 {
-                        return (clusterIndex, indexInCluster)
-                    }
-                }
+    ///     - result: The clustering result from the C++ code base.
+    /// - Returns: Formated clusters for Beam.
+    private func formatClusteringResult(result: ClusteringResult) -> [[UUID]] {
+        var clusters = [[UUID]]()
+        let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
+        let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
+        var start = 0
+        
+        for split in clusters_split {
+            var cluster = [UUID]()
+            
+            for idx in start...(start + Int(split)) - 1 {
+                cluster.append(self.textualItems[Int(indices[Int(idx)])].0)
             }
+
+            start += Int(split)
+
+            clusters.append(cluster)
         }
         
-        for (clusterIndex, cluster) in self.notesClusters.enumerated() {
-            for (indexInCluster, uuid) in cluster.enumerated() {
-                if uuid == of {
-                    let idx = self.findTextualItemIndex(of: uuid, from: from)
-                    
-                    if idx != -1 {
-                        return (clusterIndex, indexInCluster)
-                    }
-                }
-            }
-        }
-        
-        return (-1, -1)
+        return clusters
     }
     
     /// Remove the given textual item and recompute the clusters.
     ///
     /// - Parameters:
-    ///   - textualItem: The textual item to be removed.
-    /// - Returns: - pageGroups: Newly computed pages cluster.
-    ///            - noteGroups: Newly computed notes cluster.
-    private func removeActualTextualItem(textualItemIndex: Int, textualItemTabId: UUID) throws {
-        let coordinates = self.findTextualItemIndexInClusters(of: self.textualItems[textualItemIndex].uuid, from: textualItemTabId)
-        let uuidToRemove = self.textualItems[textualItemIndex].uuid
-        let type = self.textualItems[textualItemIndex].type
+    ///   - textualItemIndex: The textual item to be removed.
+    ///   - fromAdd: If the remove request comes from the add method or not.
+    /// - Returns: The clustering result from the C++ code base.
+    private func removeActualTextualItem(textualItemIndex: Int, fromAdd: Int32) throws -> ClusteringResult {
+        self.textualItems.remove(at: textualItemIndex)
+        
+        var result = ClusteringResult()
         var ret: Int32 = -1
         
-        ret = remove_textual_item(self.clustering, Int32(textualItemIndex))
+        ret = remove_textual_item(self.clustering, Int32(textualItemIndex), fromAdd, &result)
         
         if ret > 0 {
             throw CClusteringError.clusteringError
         }
         
-        self.textualItems.remove(at: textualItemIndex)
-        
-        if coordinates != (-1, -1) {
-            if type == TextualItemType.page {
-                self.pagesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
-            } else {
-                self.notesClusters[coordinates.clusterIndex].remove(at: coordinates.indexInCluster)
-            }
-        }
-        
-        #if DEBUG
-        print("FROM CLUSTERING - REMOVE - REMAINING PAGES AFTER REMOVING: ", uuidToRemove.description, " FROM Tab ID: ", textualItemTabId.description)
-        for val in self.textualItems {
-            print("FROM CLUSTERING - REMOVE - UUID: ", val.uuid)
-            print("FROM CLUSTERING - REMOVE - TABID: ", val.tabId)
-            print("FROM CLUSTERING - REMOVE - URL: ", val.url)
-            print("FROM CLUSTERING - REMOVE - Title: ", val.title)
-            print("FROM CLUSTERING - REMOVE - Processed Title: ", val.processTitle())
-            print("FROM CLUSTERING - REMOVE - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
-            print("--------")
-        }
-        #endif
+        return result
     }
 
     /// Remove the given textual item and recompute the clusters.
     ///
     /// - Parameters:
     ///   - textualItem: The textual item to be removed.
-    /// - Returns: - pageGroups: Newly computed pages cluster.
-    ///            - noteGroups: Newly computed notes cluster.
-    public func removeTextualItem(textualItemUUID: UUID, textualItemTabId: UUID) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]]), Error>) in
+    /// - Returns: Formated clusters for Beam.
+    public func remove(textualItemUUID: UUID, textualItemTabId: UUID) async throws -> [[UUID]] {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[UUID]], Error>) in
             self.queue.async {
                 do {
-                    #if DEBUG
-                    print("FROM CLUSTERING - REMOVE - REMOVING PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-                    #endif
-                    
                     let idx = self.findTextualItemIndex(of: textualItemUUID, from: textualItemTabId)
+                    var clusters = [[UUID]]()
                     
                     if idx != -1 {
-                        try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItemTabId)
-                    } else {
-                        #if DEBUG
-                        print("FROM CLUSTERING - REMOVE - NOT FOUND PAGE: ", textualItemUUID.description, " FROM Tab ID: ", textualItemTabId.description)
-                        #endif
+                        let result = try self.removeActualTextualItem(textualItemIndex: idx, fromAdd: 0)
+                        
+                        clusters = self.formatClusteringResult(result: result)
                     }
             
-                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters))
+                    continuation.resume(returning: clusters)
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -168,32 +130,21 @@ public class SmartClustering {
     ///
     /// - Parameters:
     ///   - textualItem: The textual item to be added.
-    /// - Returns: - pageGroups: Array of arrays of all pages clustered into groups.
-    ///            - noteGroups: Array of arrays of all notes clustered into groups, corresponding to the groups of pages.
-    ///            - similarities: Dict of dict of similiarity scores across each textual items.
-    public func add(textualItem: TextualItem) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
+    /// - Returns: Formated clusters for Beam.
+    public func add(textualItem: TextualItem) async throws -> [[UUID]] {
         repeat {
         } while self.clustering == nil
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]]), Error>) in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[UUID]], Error>) in
             self.queue.async {
                 do {
-                    let startTime = DispatchTime.now()
-                    #if DEBUG
-                    print("FROM CLUSTERING - ADD - ADDING PAGE: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-                    #endif
-                    
                     var idx = self.findTextualItemIndex(of: textualItem.uuid, from: textualItem.tabId)
                     
                     if idx != -1 {
-                        #if DEBUG
-                        print("FROM CLUSTERING - ADD - UUID: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description, " already exists - delete first")
-                        #endif
+                        _ = try self.removeActualTextualItem(textualItemIndex: idx, fromAdd: 1)
                         
-                        _ = try self.removeActualTextualItem(textualItemIndex: idx, textualItemTabId: textualItem.tabId)
-                        
-                        self.textualItems.insert(textualItem, at: idx)
+                        self.textualItems.insert((textualItem.uuid, textualItem.tabId), at: idx)
                     } else {
-                        self.textualItems.append(textualItem)
+                        self.textualItems.append((textualItem.uuid, textualItem.tabId))
                         idx = self.textualItems.count - 1
                     }
                     
@@ -228,48 +179,9 @@ public class SmartClustering {
                         throw CClusteringError.clusteringError
                     }
                     
-                    let indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
-                    let clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
-                    var start = 0
-                    
-                    self.pagesClusters.removeAll()
-                    self.notesClusters.removeAll()
-                    
-                    for split in clusters_split {
-                        var clusterPage = [UUID]()
-                        var clusterNote = [UUID]()
-                        
-                        for idx in start...(start + Int(split)) - 1 {
-                            if self.textualItems[Int(indices[Int(idx)])].type == .page {
-                                clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                            } else {
-                                clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                            }
-                        }
-
-                        start += Int(split)
-
-                        self.pagesClusters.append(clusterPage)
-                        self.notesClusters.append(clusterNote)
-                    }
-                    
-                    #if DEBUG
-                    print("FROM CLUSTERING - ADD - ALL PAGES AFTER ADDING: ", textualItem.uuid.description, " FROM Tab ID: ", textualItem.tabId.description)
-                    for val in self.textualItems {
-                        print("FROM CLUSTERING - ADD - UUID: ", val.uuid)
-                        print("FROM CLUSTERING - ADD - TABID: ", val.tabId)
-                        print("FROM CLUSTERING - ADD - URL: ", val.url)
-                        print("FROM CLUSTERING - ADD - Title: ", val.title)
-                        print("FROM CLUSTERING - ADD - Processed Title: ", val.processTitle())
-                        print("FROM CLUSTERING - ADD - Content: ", val.content[val.content.startIndex..<String.Index(utf16Offset:min(val.content.count, 100), in: val.content)])
-                        print("--------")
-                    }
-                    #endif
-                    let end = DispatchTime.now()
-                    let nanoTime = end.uptimeNanoseconds - startTime.uptimeNanoseconds
-                    print("Time elapsed: \(Float(nanoTime / 1000000)) ms.")
+                    let clusters = self.formatClusteringResult(result: result)
                             
-                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters))
+                    continuation.resume(returning: clusters)
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -281,10 +193,9 @@ public class SmartClustering {
     ///
     /// - Parameters:
     ///      - expectedClusters: The gold representation of the clusters as expected
-    /// - Returns: - pageGroups: Newly computed pages cluster.
-    ///            - noteGroups: Newly computed notes cluster.
-    public func changeCandidate(expectedClusters: [[TextualItem]]) async throws -> (pageGroups: [[UUID]], noteGroups: [[UUID]]) {
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<([[UUID]], [[UUID]]), Error>) in
+    /// - Returns: Formated clusters for Beam.
+    public func changeCandidate(expectedClusters: [[TextualItem]]) async throws -> [[UUID]] {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[[UUID]], Error>) in
             self.queue.async {
                 do {
                     var result = ClusteringResult()
@@ -318,32 +229,9 @@ public class SmartClustering {
                         throw CClusteringError.clusteringError
                     }
                     
-                    indices = Array(UnsafeBufferPointer(start: result.cluster.pointee.indices, count: Int(result.cluster.pointee.indices_size)))
-                    clusters_split = Array(UnsafeBufferPointer(start: result.cluster.pointee.clusters_split, count: Int(result.cluster.pointee.clusters_split_size)))
-                    var start = 0
-                    
-                    self.pagesClusters.removeAll()
-                    self.notesClusters.removeAll()
-                    
-                    for split in clusters_split {
-                        var clusterPage = [UUID]()
-                        var clusterNote = [UUID]()
-                        
-                        for idx in start...(start + Int(split)) - 1 {
-                            if self.textualItems[Int(indices[Int(idx)])].type == .page {
-                                clusterPage.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                            } else {
-                                clusterNote.append(self.textualItems[Int(indices[Int(idx)])].uuid)
-                            }
-                        }
-
-                        start += Int(split)
-                        
-                        self.pagesClusters.append(clusterPage)
-                        self.notesClusters.append(clusterNote)
-                    }
+                    let clusters = self.formatClusteringResult(result: result)
         
-                    continuation.resume(returning: (pageGroups: self.pagesClusters, noteGroups: self.notesClusters))
+                    continuation.resume(returning: clusters)
                 } catch {
                     continuation.resume(throwing: error)
                 }

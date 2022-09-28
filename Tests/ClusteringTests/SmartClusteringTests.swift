@@ -52,7 +52,7 @@ class SmartClusteringTests: XCTestCase {
                 _ = try await cluster.add(textualItem: texualItem)
             }
             Task {
-                _ = try await cluster.removeTextualItem(textualItemUUID: texualItem.uuid, textualItemTabId: texualItem.tabId)
+                _ = try await cluster.remove(textualItemUUID: texualItem.uuid, textualItemTabId: texualItem.tabId)
             }
         }
         
@@ -74,15 +74,15 @@ class SmartClusteringTests: XCTestCase {
             TextualItem(id: uuids[6], tabId: UUID(), url: "https://www.google.com/search?q=beethoven", title: "beethoven - Google Search", type: TextualItemType.page),
             TextualItem(id: uuids[7], tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", title: "musique classique - Google Search", type: TextualItemType.page)
         ]
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for texualItem in textualItems {
-            clusteredPageIds = try await cluster.add(textualItem: texualItem).pageGroups
+            clusters = try await cluster.add(textualItem: texualItem)
         }
 
-        clusteredPageIds = try await cluster.changeCandidate(expectedClusters: [[textualItems[0], textualItems[1], textualItems[6], textualItems[7]], [textualItems[2], textualItems[3], textualItems[4], textualItems[5]]]).pageGroups
+        clusters = try await cluster.changeCandidate(expectedClusters: [[textualItems[0], textualItems[1], textualItems[6], textualItems[7]], [textualItems[2], textualItems[3], textualItems[4], textualItems[5]]])
         
-        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1], uuids[6], uuids[7]], [uuids[2], uuids[3], uuids[4], uuids[5]]])))
+        expect(Set(clusters)).to(equal(Set([[uuids[0], uuids[1], uuids[6], uuids[7]], [uuids[2], uuids[3], uuids[4], uuids[5]]])))
     }
 
     func testMultilingualPages() async throws {
@@ -94,13 +94,13 @@ class SmartClusteringTests: XCTestCase {
             TextualItem(id: UUID(), tabId: UUID(), url: SamplePageContent.frNadalWiki.url, title: SamplePageContent.frNadalWiki.title, originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.youtube.com", title: "YouTube", originalContent: ["All"], type: TextualItemType.page)
         ]
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for textualItem in textualItems {
-            clusteredPageIds = try await cluster.add(textualItem: textualItem).pageGroups
+            clusters = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(clusteredPageIds.count).to(equal(2))
+        expect(clusters.count).to(equal(2))
     }
     
     func testLongAndShortText() async throws {
@@ -113,13 +113,13 @@ class SmartClusteringTests: XCTestCase {
             TextualItem(id: uuids[4], tabId: UUID(), url: SamplePageContent.nvidiaShield4k.url, title: SamplePageContent.nvidiaShield4k.title, originalContent: SamplePageContent.nvidiaShield4k.originalContent, type: TextualItemType.page),
             TextualItem(id: uuids[5], tabId: UUID(), url: SamplePageContent.bloodborne.url, title: SamplePageContent.bloodborne.title, originalContent: SamplePageContent.bloodborne.originalContent, type: TextualItemType.page)
         ]
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for textualItem in textualItems {
-            clusteredPageIds = try await cluster.add(textualItem: textualItem).pageGroups
+            clusters = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[2], uuids[3], uuids[5]], [uuids[0], uuids[1], uuids[4]]])))
+        expect(Set(clusters)).to(equal(Set([[uuids[2], uuids[3], uuids[5]], [uuids[0], uuids[1], uuids[4]]])))
     }
     
     func testGetThreshold() throws {
@@ -141,13 +141,13 @@ class SmartClusteringTests: XCTestCase {
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=beethoven", type: TextualItemType.page),
             TextualItem(id: UUID(), tabId: UUID(), url: "https://www.google.com/search?q=musique%20classique", type: TextualItemType.page)
         ]
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for textualItem in textualItems {
-            clusteredPageIds = try await cluster.add(textualItem: textualItem).pageGroups
+            clusters = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(clusteredPageIds.count).to(equal(1))
+        expect(clusters.count).to(equal(1))
     }
     
     func testMixPageNote() async throws {
@@ -159,22 +159,20 @@ class SmartClusteringTests: XCTestCase {
             TextualItem(id: uuids[3], tabId: UUID(), title: "Roger Federer", originalContent: SamplePageContent.frFedererWiki.originalContent, type: TextualItemType.note),
             TextualItem(id: uuids[4], tabId: UUID(), title: "Rafael Nadal", originalContent: SamplePageContent.frNadalWiki.originalContent, type: TextualItemType.note)
         ]
-        var clusteredPageIds: [[UUID]] = []
-        var clusteredNoteIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for textualItem in textualItems {
-            (clusteredPageIds, clusteredNoteIds) = try await cluster.add(textualItem: textualItem)
+            clusters = try await cluster.add(textualItem: textualItem)
         }
         
-        expect(Set(clusteredPageIds)).to(equal(Set([[uuids[0], uuids[1]], [uuids[2]]])))
-        expect(Set(clusteredNoteIds)).to(equal(Set([[uuids[3], uuids[4]], []])))
+        expect(Set(clusters)).to(equal(Set([[uuids[0], uuids[1], uuids[3], uuids[4]], [uuids[2]]])))
     }
     
     func testRemoveTextualItem() async throws {
         let cluster = SmartClustering()
         var pageUUIDs: [UUID] = []
         var tabUUIDs: [UUID] = []
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for i in 0...2 {
             pageUUIDs.append(UUID())
@@ -182,60 +180,60 @@ class SmartClusteringTests: XCTestCase {
             
             let myPage = TextualItem(id: pageUUIDs[i], tabId: tabUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
             
-            clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
+            clusters = try await cluster.add(textualItem: myPage)
         }
         
-        expect(clusteredPageIds[0].count) == 3
-        expect(clusteredPageIds[0][0]) == pageUUIDs[0]
-        expect(clusteredPageIds[0][1]) == pageUUIDs[1]
-        expect(clusteredPageIds[0][2]) == pageUUIDs[2]
+        expect(clusters[0].count) == 3
+        expect(clusters[0][0]) == pageUUIDs[0]
+        expect(clusters[0][1]) == pageUUIDs[1]
+        expect(clusters[0][2]) == pageUUIDs[2]
         
-        clusteredPageIds = try await cluster.removeTextualItem(textualItemUUID: pageUUIDs[0], textualItemTabId: tabUUIDs[0]).pageGroups
+        clusters = try await cluster.remove(textualItemUUID: pageUUIDs[0], textualItemTabId: tabUUIDs[0])
         
-        expect(clusteredPageIds[0].count) == 2
-        expect(clusteredPageIds[0][0]) == pageUUIDs[1]
-        expect(clusteredPageIds[0][1]) == pageUUIDs[2]
+        expect(clusters[0].count) == 2
+        expect(clusters[0][0]) == pageUUIDs[1]
+        expect(clusters[0][1]) == pageUUIDs[2]
     }
     
     func testAddMultipleTimesTheSamePage() async throws {
         let cluster = SmartClustering()
         let pageUUID = UUID()
         let tabUUID = UUID()
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for _ in 0...2 {
             let myPage = TextualItem(id: pageUUID, tabId: tabUUID, url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
             
-            clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
+            clusters = try await cluster.add(textualItem: myPage)
         }
         
-        expect(clusteredPageIds[0].count) == 1
+        expect(clusters[0].count) == 1
     }
     
     func testAddMultipleTimesTheSamePageFromDifferentTab() async throws {
         let cluster = SmartClustering()
         let pageUUID = UUID()
         var tabUUIDs: [UUID] = []
-        var clusteredPageIds: [[UUID]] = []
+        var clusters: [[UUID]] = []
         
         for i in 0...2 {
             tabUUIDs.append(UUID())
             
             let myPage = TextualItem(id: pageUUID, tabId: tabUUIDs[i], url: "http://note.com", title: "My note", originalContent: ["This is my note"], type: TextualItemType.page)
             
-            clusteredPageIds = try await cluster.add(textualItem: myPage).pageGroups
+            clusters = try await cluster.add(textualItem: myPage)
         }
 
-        expect(clusteredPageIds[0].count) == 3
-        expect(clusteredPageIds[0][0]) == pageUUID
-        expect(clusteredPageIds[0][1]) == pageUUID
-        expect(clusteredPageIds[0][2]) == pageUUID
+        expect(clusters[0].count) == 3
+        expect(clusters[0][0]) == pageUUID
+        expect(clusters[0][1]) == pageUUID
+        expect(clusters[0][2]) == pageUUID
         
-        clusteredPageIds = try await cluster.removeTextualItem(textualItemUUID: pageUUID, textualItemTabId: tabUUIDs[0]).pageGroups
+        clusters = try await cluster.remove(textualItemUUID: pageUUID, textualItemTabId: tabUUIDs[0])
         
-        expect(clusteredPageIds[0].count) == 2
-        expect(clusteredPageIds[0][0]) == pageUUID
-        expect(clusteredPageIds[0][1]) == pageUUID
+        expect(clusters[0].count) == 2
+        expect(clusters[0][0]) == pageUUID
+        expect(clusters[0][1]) == pageUUID
     }
 }
 

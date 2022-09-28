@@ -286,7 +286,8 @@ int Clustering::add_textual_item(const char* text, ClusteringResult* result) {
     return 0;
 }
 
-int Clustering::remove_textual_item(const int idx) {
+int Clustering::remove_textual_item(const int idx, const int from_add, ClusteringResult* result) {
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
     this->embeddings.erase(this->embeddings.begin() + idx);
     
     for (int i = 0;i < this->similarities.size();i++) {
@@ -294,6 +295,21 @@ int Clustering::remove_textual_item(const int idx) {
     }
     
     this->similarities.erase(this->similarities.begin() + idx);
+    
+    if (this->embeddings.size() > 0 && from_add == 0) {
+        std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> result_clusters = this->compute_clusters();
+        
+        assert(std::get<0>(result_clusters).size() == this->embeddings.size());
+        
+        result->performance_tokenizer = 0;
+        result->performance_inference = 0;
+        
+        this->format_clustering_result(result_clusters, result, start);
+    } else {
+        result->cluster = new ClusterDefinition();
+        result->cluster->indices = new uint16_t[0];
+        result->cluster->clusters_split = new uint16_t[0];
+    }
     
     return 0;
 }
@@ -339,6 +355,9 @@ int Clustering::recompute_clustering_threshold(const ClusterDefinition* expected
     std::tuple<std::vector<uint16_t>, std::vector<uint16_t>> best_clusters;
     float best_acc = 0.0;
     float best_threshold = 0.0;
+    
+    result->performance_tokenizer = 0;
+    result->performance_inference = 0;
     
     for (float i = 0.0001;i < 1.0;i+=0.0001) {
         this->threshold = i;
