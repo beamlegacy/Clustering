@@ -17,7 +17,7 @@
 #include <numeric>
 #include <set>
 #include <iomanip>
-
+#include <cassert>
 
 struct ClusterDefinition {
     uint16_t* indices;
