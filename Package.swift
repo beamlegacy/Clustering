@@ -17,8 +17,8 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
-        .package(url: "https://github.com/alexandertar/LASwift", .branch("master")),
-        .package(url: "https://github.com/Quick/Nimble.git", .branch("main")),
+        .package(url: "https://github.com/alexandertar/LASwift", .exactItem("0.2.6")),
+        .package(url: "https://github.com/Quick/Nimble.git", .upToNextMajor(from: "9.0.0")),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
         .package(url: "https://github.com/dehesa/CodableCSV.git", from: "0.6.7")
     ],
