@@ -69,7 +69,7 @@ extension ClusteringCLI {
     }
     
     mutating func run() async throws {
-        let cluster = SmartClustering()
+        let cluster = LegacyClustering()
         var pages: [UUID: TextualItem] = [:]
         let csvFile = try CSVReader.decode(input: URL(fileURLWithPath: inputFile)){ $0.headerStrategy = .firstLine }
         var clusteredPageIds: [[UUID]] = []
