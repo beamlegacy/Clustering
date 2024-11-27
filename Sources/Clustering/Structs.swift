@@ -8,7 +8,11 @@ public struct EntitiesInText : Equatable {
         return "PER[" + entities["PersonalName"]!.description + "] - LOC[" + entities["PlaceName"]!.description + "] - ORG[" + entities["OrganizationName"]!.description + "]"
     }
     var isEmpty: Bool {
-        if (entities["PersonalName"]?.count ?? 0) + (entities["PlaceName"]?.count ?? 0) + (entities["OrganizationName"]?.count ?? 0) == 0 {
+        let personalName = entities["PersonalName"]?.count ?? 0
+        let placeName = entities["PlaceName"]?.count ?? 0
+        let organizationName = entities["OrganizationName"]?.count ?? 0
+        let total = personalName + placeName + organizationName
+        if total == 0 {
             return true
         } else {
             return false
